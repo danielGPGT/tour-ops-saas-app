@@ -192,8 +192,40 @@ export function ProductsPageClient({
       icon: <Package className="h-4 w-4" />,
       variant: "destructive" as const,
       onClick: async (items: Product[]) => {
-        // TODO: Implement bulk delete
-        toast.success(`Deleted ${items.length} products`);
+        // Check for products with variants
+        const productsWithVariants = items.filter(p => (p.product_variants?.length || 0) > 0);
+        const productsWithoutVariants = items.filter(p => (p.product_variants?.length || 0) === 0);
+        
+        if (productsWithVariants.length > 0) {
+          toast.error(`Cannot delete ${productsWithVariants.length} product${productsWithVariants.length !== 1 ? 's' : ''} with variants. Delete variants first.`);
+          return;
+        }
+        
+        if (productsWithoutVariants.length === 0) {
+          toast.error("No products can be deleted (all have variants)");
+          return;
+        }
+        
+        if (confirm(`Are you sure you want to delete ${productsWithoutVariants.length} product${productsWithoutVariants.length !== 1 ? 's' : ''}? This action cannot be undone.`)) {
+          try {
+            const response = await fetch('/api/products/bulk-delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: productsWithoutVariants.map(p => p.id) })
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              toast.success(`Deleted ${result.deletedCount} product${result.deletedCount !== 1 ? 's' : ''} successfully`);
+              router.refresh();
+            } else {
+              const errorData = await response.json();
+              toast.error(errorData.error || 'Failed to delete products');
+            }
+          } catch (error) {
+            toast.error('Failed to delete products');
+          }
+        }
       }
     }
   ];
@@ -359,6 +391,12 @@ export function ProductsPageClient({
             
             <DropdownMenuItem
               onClick={async () => {
+                const variantCount = product.product_variants?.length || 0;
+                if (variantCount > 0) {
+                  toast.error(`Cannot delete product with ${variantCount} variant${variantCount !== 1 ? 's' : ''}. Delete variants first.`);
+                  return;
+                }
+                
                 if (confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
                   try {
                     const response = await fetch('/api/products/bulk-delete', {
@@ -380,10 +418,14 @@ export function ProductsPageClient({
                   }
                 }
               }}
-              className="text-destructive focus:text-destructive"
+              className={`${(product.product_variants?.length || 0) > 0 ? 'text-muted-foreground cursor-not-allowed' : 'text-destructive focus:text-destructive'}`}
+              disabled={(product.product_variants?.length || 0) > 0}
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete Product
+              {(product.product_variants?.length || 0) > 0 && (
+                <span className="ml-auto text-xs">(Has variants)</span>
+              )}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
