@@ -115,9 +115,9 @@ export function DataTable<T>({
   return (
     <TooltipProvider>
         
-      <Table className={`bg-card shadow-sm rounded-md ${className}`}>
+      <Table className={`bg-card shadow-sm rounded-md overflow-hidden ${className}`}>
         <TableHeader className="">
-          <TableRow>
+          <TableRow className="bg-muted hover:bg-muted">
             <TableHead className="w-[40px]">
               <Checkbox
                 checked={allSelected}
@@ -160,7 +160,7 @@ export function DataTable<T>({
         </TableHeader>
         <TableBody>
           {data.map((item) => (
-            <TableRow key={getId(item).toString()}>
+            <TableRow key={getId(item).toString()} className="hover:bg-primary/5">
               <TableCell>
                 <Checkbox
                   checked={selectedIds.has(getId(item).toString())}

@@ -109,7 +109,7 @@ export default async function ProductsPage({
     products = [];
     totalCount = 0;
     productTypesData = [];
-    productSubtypesData = [];
+    // productSubtypesData = [];
     stats = {
       totalCount: 0,
       activeCount: 0,

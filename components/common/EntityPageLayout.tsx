@@ -56,6 +56,11 @@ export interface EntityPageLayoutProps<T> {
     icon?: React.ReactNode;
     onClick: () => void;
   };
+  secondaryActions?: Array<{
+    label: string;
+    icon?: React.ReactNode;
+    onClick: () => void;
+  }>;
   
   // Search results info
   searchQuery?: string;
@@ -92,6 +97,7 @@ export function EntityPageLayout<T>({
   searchParams = {},
   summaryCards,
   primaryAction,
+  secondaryActions,
   searchQuery,
   onClearSearch,
   children,
@@ -114,6 +120,18 @@ export function EntityPageLayout<T>({
               searchParam={searchParam}
               className=""
             />
+            {secondaryActions?.map((action, index) => (
+              <Button 
+                key={index}
+                size="sm" 
+                variant="outline"
+                className="h-8 gap-1"
+                onClick={action.onClick}
+              >
+                {action.icon || <Plus className="h-3 w-3" />}
+                {action.label}
+              </Button>
+            ))}
             {primaryAction && (
               <Button 
                 size="sm" 

@@ -240,15 +240,18 @@ export function ProductsPageClient({
         const productType = product.product_types;
         const TypeIcon = productType ? getIcon(productType.icon) : Package;
         return (
-          <div className="flex items-center gap-2">
+          <button 
+            onClick={() => router.push(`/products/${product.id}`)}
+            className="flex items-center gap-2 hover:bg-muted/50 p-2 rounded-md -m-2 transition-colors w-full text-left"
+          >
             <TypeIcon className="h-4 w-4 text-muted-foreground" />
             <div>
-              <div className="font-medium text-sm">{product.name}</div>
+              <div className="font-medium text-sm hover:text-primary transition-colors">{product.name}</div>
               <div className="text-xs text-muted-foreground">
                 {product.product_variants?.length || 0} variant{(product.product_variants?.length || 0) !== 1 ? 's' : ''}
               </div>
             </div>
-          </div>
+          </button>
         );
       }
     },
@@ -553,7 +556,10 @@ export function ProductsPageClient({
         }}
         productId={selectedProductForVariants?.id || null}
         productName={selectedProductForVariants?.name}
-        variant={editVariantId ? selectedProductForVariants?.product_variants?.find(v => v.id === editVariantId) : undefined}
+        variant={editVariantId ? selectedProductForVariants?.product_variants?.find(v => v.id === editVariantId) ? {
+          ...selectedProductForVariants.product_variants.find(v => v.id === editVariantId)!,
+          attributes: {}
+        } : undefined : undefined}
         onVariantUpdated={() => {
           // Trigger refresh of variants modal data
           setRefreshTrigger(prev => prev + 1);

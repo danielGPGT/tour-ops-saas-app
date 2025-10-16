@@ -1,5 +1,7 @@
 "use client";
 
+
+import Image from "next/image";
 import * as React from "react";
 import {
   LayoutGrid,
@@ -165,17 +167,13 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="offcanvas" {...props} className="border-none">
-      <SidebarHeader className="pt-16">
+      <SidebarHeader className="pt-20">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="/">
-
-                <span className="font-black text-2xl">Pandora</span>
-              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

@@ -2,17 +2,23 @@
 
 import { Bell, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
+import {Top} from "@/components/top";
 import { ThemeToggle } from "@/components/theme-toggle";
-
+import Image from "next/image";
+import { useTheme } from "next-themes";
 export function Header() {
+  const { theme } = useTheme();
+
   return (
-    <header className="sticky top-0 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="h-14 px-4 md:px-8 flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href="/" className="text-sm font-semibold truncate">Dashboard</Link>
-          <span className="text-muted-foreground">/</span>
-          <span className="text-sm text-muted-foreground truncate">Overview</span>
-        </div>
+    <header className="sticky top-0 border-b z-50 border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <Top />
+      <div className="h-14 px-4 md:px-4 flex items-center justify-between">
+        
+        <a href="/">
+                <Image src={theme === "dark" ? "/newlight.png" : "/newdark.png"} alt="Pandora" width={150} height={150} />  
+              </a>
+
+      
         <div className="flex items-center gap-2">
           <button className="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-muted">
             <Search className="h-4 w-4" />
