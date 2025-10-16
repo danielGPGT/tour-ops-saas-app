@@ -334,18 +334,17 @@ export function ProductsPageClient({
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      name: `${product.name} (Copy)`,
-                      type: product.type,
-                      status: product.status,
-                      product_type_id: product.product_types?.id
+                      productId: product.id,
+                      name: `${product.name} (Copy)`
                     })
                   });
                   
                   if (response.ok) {
-                    toast.success('Product duplicated successfully');
+                    toast.success('Product and variants duplicated successfully');
                     router.refresh();
                   } else {
-                    toast.error('Failed to duplicate product');
+                    const errorData = await response.json();
+                    toast.error(errorData.error || 'Failed to duplicate product');
                   }
                 } catch (error) {
                   toast.error('Failed to duplicate product');
@@ -369,10 +368,12 @@ export function ProductsPageClient({
                     });
                     
                     if (response.ok) {
-                      toast.success('Product deleted successfully');
+                      const result = await response.json();
+                      toast.success(`Product deleted successfully`);
                       router.refresh();
                     } else {
-                      toast.error('Failed to delete product');
+                      const errorData = await response.json();
+                      toast.error(errorData.error || 'Failed to delete product');
                     }
                   } catch (error) {
                     toast.error('Failed to delete product');

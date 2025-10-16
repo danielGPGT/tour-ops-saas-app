@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createProduct } from '@/app/products/actions';
+import { duplicateProduct } from '@/app/products/actions';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    const result = await createProduct({
-      name: body.name,
-      type: body.type || 'accommodation',
-      status: body.status || 'active',
-      product_type_id: body.product_type_id || undefined
-    });
+    if (!body.productId) {
+      return NextResponse.json(
+        { success: false, error: 'Product ID is required' },
+        { status: 400 }
+      );
+    }
+    
+    const result = await duplicateProduct(body.productId, body.name);
 
     if (result.success) {
       return NextResponse.json({ success: true, product: result.product });

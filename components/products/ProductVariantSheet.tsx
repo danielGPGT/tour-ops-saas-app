@@ -91,6 +91,7 @@ export function ProductVariantSheet({
       await createProductVariant({
         product_id: productId,
         name: values.name,
+        subtype: values.subtype,
         status: values.status,
         attributes: parsedAttributes
       });
@@ -134,6 +135,52 @@ export function ProductVariantSheet({
               placeholder="e.g., Standard Room, Morning Tour, Economy Seat"
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="subtype">Subtype</Label>
+            <Select
+              value={values.subtype}
+              onValueChange={(value) => set("subtype", value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      None
+                    </Badge>
+                    <span>No specific subtype</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="room_category">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      Room Category
+                    </Badge>
+                    <span>Standard, Deluxe, Suite, etc.</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="seat_tier">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      Seat Tier
+                    </Badge>
+                    <span>Economy, Business, First Class</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="time_slot">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      Time Slot
+                    </Badge>
+                    <span>Morning, Afternoon, Evening</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

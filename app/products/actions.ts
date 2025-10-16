@@ -277,17 +277,17 @@ export async function bulkDeleteProducts(productIds: number[]) {
       .in('product_id', productIds)
       .eq('org_id', DEFAULT_ORG_ID);
 
-    if (variantsError) throw variantsError;
+    if (variantsError) return { success: false, error: "Failed to check for variants" };
 
     const productsWithVariants = new Set(variants?.map(v => v.product_id) || []);
     const productsWithoutVariants = productIds.filter(id => !productsWithVariants.has(id));
 
     if (productsWithoutVariants.length === 0) {
-      throw new Error("Selected products have variants and cannot be deleted");
+      return { success: false, error: "Selected products have variants and cannot be deleted" };
     }
 
     if (productsWithoutVariants.length < productIds.length) {
-      throw new Error(`Only ${productsWithoutVariants.length} of ${productIds.length} products can be deleted (others have variants)`);
+      return { success: false, error: `Only ${productsWithoutVariants.length} of ${productIds.length} products can be deleted (others have variants)` };
     }
 
     const { error } = await supabase
@@ -296,12 +296,72 @@ export async function bulkDeleteProducts(productIds: number[]) {
       .in('id', productsWithoutVariants)
       .eq('org_id', DEFAULT_ORG_ID);
 
-    if (error) throw error;
+    if (error) return { success: false, error: "Failed to delete products" };
 
     revalidatePath('/products');
-    return { success: true, deleted: productsWithoutVariants.length };
+    return { success: true, deletedCount: productsWithoutVariants.length };
   } catch (error) {
     console.error("Error bulk deleting products:", error);
-    throw error;
+    return { success: false, error: "Failed to delete products" };
+  }
+}
+
+// Duplicate product with all its variants
+export async function duplicateProduct(productId: number, newName?: string) {
+  const supabase = await createClient();
+  
+  try {
+    // Get the original product with its variants
+    const { data: originalProduct, error: productError } = await supabase
+      .from('products')
+      .select(`
+        *,
+        product_variants (*)
+      `)
+      .eq('id', productId)
+      .eq('org_id', DEFAULT_ORG_ID)
+      .single();
+
+    if (productError) throw productError;
+    if (!originalProduct) throw new Error('Product not found');
+
+    // Create the new product
+    const { data: newProduct, error: createError } = await supabase
+      .from('products')
+      .insert({
+        org_id: DEFAULT_ORG_ID,
+        name: newName || `${originalProduct.name} (Copy)`,
+        type: originalProduct.type,
+        status: originalProduct.status,
+        product_type_id: originalProduct.product_type_id
+      })
+      .select()
+      .single();
+
+    if (createError) throw createError;
+
+    // Duplicate all variants if they exist
+    if (originalProduct.product_variants && originalProduct.product_variants.length > 0) {
+      const variantInserts = originalProduct.product_variants.map((variant: any) => ({
+        org_id: DEFAULT_ORG_ID,
+        product_id: newProduct.id,
+        name: `${variant.name} (Copy)`,
+        subtype: variant.subtype,
+        status: variant.status,
+        attributes: variant.attributes
+      }));
+
+      const { error: variantsError } = await supabase
+        .from('product_variants')
+        .insert(variantInserts);
+
+      if (variantsError) throw variantsError;
+    }
+
+    revalidatePath('/products');
+    return { success: true, product: newProduct };
+  } catch (error) {
+    console.error("Error duplicating product:", error);
+    throw new Error("Failed to duplicate product");
   }
 }
