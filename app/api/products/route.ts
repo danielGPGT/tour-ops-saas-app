@@ -57,3 +57,55 @@ export async function GET() {
     }, { status: 500 });
   }
 }
+
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient();
+    const body = await request.json();
+    
+    const { name, type } = body;
+
+    if (!name || !type) {
+      return NextResponse.json({
+        success: false,
+        error: 'Name and type are required'
+      }, { status: 400 });
+    }
+
+    // Create new product collection
+    const { data: product, error } = await supabase
+      .from('products')
+      .insert({
+        org_id: 1, // In real app, this would come from session
+        name,
+        type,
+        status: 'active'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating product:', error);
+      return NextResponse.json({
+        success: false,
+        error: error.message
+      }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: product.id.toString(),
+        name: product.name,
+        type: product.type
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in products POST API:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to create product'
+    }, { status: 500 });
+  }
+}

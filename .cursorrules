@@ -1,0 +1,540 @@
+# Tour Operator Inventory Management System - Development Guidelines
+
+## Project Context
+You are building a comprehensive inventory management system for small-to-mid sized tour operators. This system manages products (hotels, activities, transfers, events, cruises, packages), their variants, pricing (rate plans), and availability (allocation buckets).
+
+## Tech Stack
+- **Framework**: Next.js 14+ (App Router)
+- **Database**: PostgreSQL with Prisma ORM
+- **UI Components**: shadcn/ui (Radix UI primitives)
+- **Styling**: Tailwind CSS
+- **Tables**: TanStack Table (React Table v8)
+- **Forms**: React Hook Form + Zod validation
+- **State Management**: React Server Components + Server Actions
+
+## Database Schema Understanding
+
+### Core Relationships
+```
+products (1) → (many) product_variants
+product_variants (1) → (many) rate_plans
+product_variants (1) → (many) allocation_buckets
+rate_plans (1) → (many) rate_seasons
+rate_plans (1) → (many) rate_occupancies
+rate_plans (1) → (many) rate_taxes_fees
+allocation_buckets (1) → (many) allocation_holds
+products (1) → (1) product_types
+product_variants (1) → (1) product_subtypes
+suppliers (1) → (many) products
+suppliers (1) → (many) contracts
+contracts (1) → (many) contract_versions
+```
+
+### Critical Schema Details
+
+**Products & Variants**
+- `products`: The main entity (e.g., "Grand Hotel Paris", "F1 Abu Dhabi GP")
+- `product_variants`: Different versions (e.g., "Standard Room", "Main Grandstand Ticket")
+- Product types: accommodation, activity, transfer, event, cruise, package
+- Each variant can have multiple rate plans from different suppliers
+
+**Rate Plans (Pricing)**
+- Multiple rate plans per variant (different suppliers, channels, seasons)
+- `rate_occupancies`: Pricing by occupancy (1 person, 2 people, etc.)
+- `rate_seasons`: Date ranges with different pricing (low season, high season)
+- `rate_age_bands`: Age-based pricing (adult, child, infant)
+- `rate_taxes_fees`: Additional charges (city tax, booking fee)
+- `inventory_model`: 'committed' (fixed allocation) | 'freesale' (unlimited) | 'on_request'
+
+**Allocation (Inventory)**
+- `allocation_buckets`: Daily inventory records
+- For per-day inventory: use `date` field (hotels, activities)
+- For events: use `event_start_date` + `event_end_date` (single record for multi-day event)
+- For activities: use `slot_id` to reference `time_slots` (9am, 2pm, 4pm)
+- `quantity`: Total available
+- `booked`: Currently booked
+- `held`: Temporarily held (pending bookings)
+- `stop_sell`: Boolean to prevent new bookings
+- `blackout`: Boolean for blocked dates
+
+**Time Slots (for activities)**
+- `time_slots`: Operating times for activities/tours
+- Each slot has its own allocation bucket per day
+
+## Code Style & Conventions
+
+### File Structure
+```
+app/
+├── (dashboard)/
+│   ├── products/
+│   │   ├── page.tsx                 # Products list (table view)
+│   │   ├── [id]/
+│   │   │   ├── page.tsx             # Product detail (tabs)
+│   │   │   └── edit/page.tsx        # Edit product
+│   │   ├── columns.tsx              # Table columns definition
+│   │   ├── toolbar.tsx              # Table filters/search
+│   │   └── actions.ts               # Server actions
+│   ├── availability/
+│   │   └── page.tsx                 # Calendar view
+│   ├── suppliers/
+│   │   └── page.tsx                 # Suppliers list
+│   └── layout.tsx                   # Dashboard layout with sidebar
+├── api/                             # API routes (if needed)
+└── actions/                         # Server actions
+components/
+├── ui/                              # shadcn/ui components
+├── products/                        # Product-specific components
+├── wizards/                         # Multi-step forms
+└── data-table/                      # Reusable table components
+lib/
+├── db.ts                            # Prisma client
+├── utils.ts                         # Utility functions
+└── validations.ts                   # Zod schemas
+```
+
+### Component Patterns
+
+**Always use Server Components by default**
+```tsx
+// ✅ Good - Server Component (default)
+export default async function ProductsPage() {
+  const products = await getProducts()
+  return 
+}
+
+// ❌ Avoid - Don't add 'use client' unless necessary
+'use client'
+export default function ProductsPage() { ... }
+```
+
+**Use Client Components only when needed**
+```tsx
+// ✅ Use 'use client' for:
+// - Interactive forms
+// - Event handlers (onClick, onChange)
+// - Hooks (useState, useEffect)
+// - Browser APIs
+
+'use client'
+export function ProductForm() {
+  const [data, setData] = useState({})
+  // Interactive form logic
+}
+```
+
+**Server Actions for mutations**
+```tsx
+// app/products/actions.ts
+'use server'
+
+export async function createProduct(data: ProductFormData) {
+  const validated = productSchema.parse(data)
+  
+  const product = await db.product.create({
+    data: {
+      org_id: await getOrgId(),
+      name: validated.name,
+      type: validated.type,
+      // ...
+    }
+  })
+  
+  revalidatePath('/products')
+  return { success: true, product }
+}
+```
+
+### UI Component Usage
+
+**Data Tables**
+```tsx
+import { DataTable } from "@/components/ui/data-table"
+import { columns } from "./columns"
+
+// Always use shadcn DataTable with TanStack Table
+
+```
+
+**Forms**
+```tsx
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Form, FormField, FormItem, FormLabel, FormControl } from "@/components/ui/form"
+
+// Always use React Hook Form + Zod
+const form = useForm({
+  resolver: zodResolver(productSchema),
+  defaultValues: { ... }
+})
+
+
+  
+    <FormField
+      control={form.control}
+      name="name"
+      render={({ field }) => (
+        
+          Product Name
+          
+            
+          
+          
+        
+      )}
+    />
+  
+
+```
+
+**Dialogs/Modals**
+```tsx
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+// Use dialogs for quick actions, wizards for complex flows
+
+  
+    
+      Add Variant
+    
+    {/* Content */}
+  
+
+```
+
+## Key Features to Implement
+
+### 1. Products Management
+- **List View**: Paginated table with filters (type, supplier, status)
+- **Detail View**: Tabbed interface (Overview, Variants, Availability, Pricing, Bookings, Performance)
+- **Expandable Rows**: Show variants inline within product card/row
+- **Bulk Actions**: Select multiple products for bulk updates
+- **Status Indicators**: Visual badges for active, low stock, stop sell
+
+### 2. Wizards (Multi-Step Forms)
+
+**Product Creation Wizard**
+```tsx
+// components/wizards/product-wizard.tsx
+'use client'
+
+const steps = [
+  { id: 'type', title: 'Product Type', component: StepType },
+  { id: 'details', title: 'Basic Details', component: StepDetails },
+  { id: 'variant', title: 'First Variant', component: StepVariant },
+  { id: 'pricing', title: 'Pricing', component: StepPricing },
+  { id: 'availability', title: 'Availability', component: StepAvailability },
+  { id: 'review', title: 'Review', component: StepReview }
+]
+
+export function ProductWizard() {
+  const [currentStep, setCurrentStep] = useState(0)
+  const [formData, setFormData] = useState({})
+  
+  // Wizard logic with progress indicator
+  // Context-aware steps (show different fields based on product type)
+}
+```
+
+**Required Wizards**:
+- Add Product Wizard (context-aware by product type)
+- Add Variant Wizard (with clone option)
+- Bulk Availability Update Wizard
+- Contract Import Wizard (Excel/CSV)
+- Bulk Price Update Wizard
+
+### 3. Availability Calendar
+```tsx
+// app/availability/page.tsx
+// Calendar view showing all products/variants
+// Color-coded by availability (green=available, amber=low, red=sold out)
+// Click cell to edit
+// Drag to select multiple dates for bulk update
+// Event products show as date ranges, not individual days
+```
+
+### 4. Smart Features
+
+**Auto-suggestions**:
+- Clone variant pricing from existing
+- Smart defaults based on product type
+- Suggested variant names based on attributes
+
+**Progressive Disclosure**:
+- Show essential fields by default
+- "Advanced options" collapsible for power users
+- Context-sensitive help text
+
+**Inline Editing**:
+- Click any price/quantity to edit inline
+- Press Enter to save, Esc to cancel
+- Optimistic UI updates
+
+## Database Query Patterns
+
+### Fetching Products with Relations
+```typescript
+// Always include necessary relations
+const products = await db.product.findMany({
+  where: { org_id },
+  include: {
+    product_type: true,
+    variants: {
+      where: { status: 'active' },
+      include: {
+        rate_plans: {
+          include: {
+            supplier: true,
+            rate_seasons: true,
+            rate_occupancies: true
+          }
+        },
+        allocation_buckets: {
+          where: {
+            date: { gte: new Date() }
+          }
+        },
+        time_slots: true
+      }
+    },
+    supplier: true
+  },
+  orderBy: { created_at: 'desc' }
+})
+```
+
+### Availability Calculations
+```typescript
+// Calculate available units
+function calculateAvailability(bucket: AllocationBucket) {
+  const available = bucket.quantity - bucket.booked - bucket.held
+  const percentage = (available / bucket.quantity) * 100
+  
+  return {
+    available,
+    total: bucket.quantity,
+    percentage,
+    status: percentage < 20 ? 'low' : percentage === 0 ? 'sold_out' : 'available'
+  }
+}
+```
+
+### Rate Plan Selection (Booking Logic)
+```typescript
+// Find applicable rate plan
+async function findApplicableRatePlan(
+  variantId: number,
+  checkIn: Date,
+  checkOut: Date,
+  occupancy: number,
+  channel: string
+) {
+  const ratePlans = await db.ratePlan.findMany({
+    where: {
+      product_variant_id: variantId,
+      channels: { has: channel },
+      valid_from: { lte: checkIn },
+      valid_to: { gte: checkOut }
+    },
+    include: {
+      rate_seasons: true,
+      rate_occupancies: true
+    },
+    orderBy: { preferred: 'desc' }
+  })
+  
+  // Filter by season and occupancy
+  // Return best match
+}
+```
+
+## Validation Schemas
+
+### Product Schema
+```typescript
+import { z } from 'zod'
+
+export const productSchema = z.object({
+  name: z.string().min(3, 'Name must be at least 3 characters'),
+  type: z.enum(['accommodation', 'activity', 'transfer', 'event', 'cruise', 'package']),
+  supplier_id: z.number().positive(),
+  location: z.string().optional(),
+  description: z.string().optional(),
+  status: z.enum(['active', 'inactive']).default('active')
+})
+
+export const variantSchema = z.object({
+  name: z.string().min(2),
+  product_id: z.number().positive(),
+  attributes: z.record(z.any()),
+  status: z.enum(['active', 'inactive']).default('active')
+})
+
+export const ratePlanSchema = z.object({
+  product_variant_id: z.number().positive(),
+  supplier_id: z.number().positive(),
+  inventory_model: z.enum(['committed', 'freesale', 'on_request']),
+  currency: z.string().length(3),
+  valid_from: z.date(),
+  valid_to: z.date(),
+  channels: z.array(z.string()),
+  markets: z.array(z.string())
+})
+```
+
+## Performance Optimizations
+
+**Pagination**
+```typescript
+// Always paginate large datasets
+const pageSize = 20
+const products = await db.product.findMany({
+  skip: (page - 1) * pageSize,
+  take: pageSize
+})
+
+const totalCount = await db.product.count()
+```
+
+**Caching**
+```typescript
+import { unstable_cache } from 'next/cache'
+
+// Cache expensive queries
+export const getProducts = unstable_cache(
+  async (orgId: number) => {
+    return await db.product.findMany({ where: { org_id: orgId } })
+  },
+  ['products'],
+  { revalidate: 60, tags: ['products'] }
+)
+```
+
+**Optimistic Updates**
+```typescript
+'use client'
+
+import { useOptimistic } from 'react'
+
+const [optimisticProducts, updateOptimisticProducts] = useOptimistic(
+  products,
+  (state, newProduct) => [...state, newProduct]
+)
+
+// Update UI immediately, sync with server in background
+```
+
+## Error Handling
+
+**Server Actions**
+```typescript
+'use server'
+
+export async function createProduct(data: ProductFormData) {
+  try {
+    const validated = productSchema.parse(data)
+    
+    const product = await db.product.create({ data: validated })
+    
+    revalidatePath('/products')
+    return { success: true, product }
+    
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, errors: error.flatten().fieldErrors }
+    }
+    
+    console.error('Failed to create product:', error)
+    return { success: false, error: 'Failed to create product' }
+  }
+}
+```
+
+**Client Error Handling**
+```tsx
+'use client'
+
+import { toast } from 'sonner'
+
+async function handleSubmit(data) {
+  const result = await createProduct(data)
+  
+  if (result.success) {
+    toast.success('Product created successfully')
+    router.push(`/products/${result.product.id}`)
+  } else {
+    toast.error(result.error || 'Something went wrong')
+  }
+}
+```
+
+## Accessibility
+
+- Always include proper ARIA labels
+- Keyboard navigation support
+- Focus management in dialogs
+- Screen reader friendly
+- Color contrast ratios meet WCAG AA
+
+## Testing Approach
+
+- Test critical user flows (create product, add variant, book)
+- Validate allocation logic thoroughly
+- Test rate calculation edge cases
+- Verify permission/org isolation
+
+## Key Business Rules
+
+1. **Allocation Decrement**: When booking, decrement the SINGLE allocation bucket that applies (not multiple for events)
+2. **Rate Selection**: Use preferred rate plan first, then fallback to others
+3. **Multi-Supplier**: Same variant can have different rate plans from different suppliers
+4. **Inventory Pooling**: Allocation can be shared across variants via `inventory_pool_id`
+5. **Event Allocation**: Events use single allocation record with event_start/end dates
+6. **Activity Slots**: Each time slot gets separate allocation per day
+
+## Common Pitfalls to Avoid
+
+❌ **Don't**: Create separate allocation for each day of multi-day event
+✅ **Do**: Use event_start_date/event_end_date on single allocation record
+
+❌ **Don't**: Store currency amounts as Float
+✅ **Do**: Use Decimal/Numeric for all financial amounts
+
+❌ **Don't**: Hard-code product types
+✅ **Do**: Query from product_types table (org-customizable)
+
+❌ **Don't**: Skip validation
+✅ **Do**: Always validate with Zod schemas
+
+❌ **Don't**: Expose internal IDs in URLs/UI
+✅ **Do**: Use slugs or external references where appropriate
+
+## When Implementing New Features
+
+1. **Check schema first**: Understand the table relationships
+2. **Identify query pattern**: Include necessary relations
+3. **Add validation**: Create Zod schema
+4. **Use shadcn components**: Don't build custom UI from scratch
+5. **Server Components first**: Only use 'use client' when necessary
+6. **Add error handling**: Never let errors crash silently
+7. **Test allocation logic**: Verify counts are correct
+8. **Consider multi-tenancy**: Always filter by org_id
+
+## Code Generation Instructions
+
+When I ask you to:
+- **"Create a table"**: Use DataTable with TanStack Table, include filters, search, pagination
+- **"Create a form"**: Use React Hook Form + Zod + shadcn Form components
+- **"Create a wizard"**: Multi-step form with progress indicator, navigation, data persistence
+- **"Add a feature"**: Use Server Components, Server Actions, proper validation
+- **"Show availability"**: Calculate from allocation_buckets (quantity - booked - held)
+- **"Handle booking"**: Decrement allocation, create booking_item, handle holds
+
+Always prioritize:
+1. Type safety (TypeScript)
+2. Data validation (Zod)
+3. Performance (pagination, caching)
+4. User experience (loading states, optimistic updates, error messages)
+5. Accessibility (ARIA, keyboard nav)
+
+Remember: This is for tour operators managing inventory. Keep UX simple, tables clear, and workflows intuitive. They need to manage hundreds of products efficiently.

@@ -61,16 +61,20 @@ const data = {
           url: "/contracts",
         },
         {
-          title: "Products",
+          title: "Product Collections",
           url: "/products",
         },
         {
-          title: "Product Types",
-          url: "/product-types",
+          title: "Products",
+          url: "/products-variants",
         },
         {
           title: "Rate Plans",
           url: "/rates",
+        },
+        {
+          title: "Pools",
+          url: "/pools",
         },
         {
           title: "Availability",

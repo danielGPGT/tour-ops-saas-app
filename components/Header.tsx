@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 export function Header() {
-  const { theme } = useTheme();
+  const { theme, systemTheme } = useTheme();
 
   return (
     <header className="sticky top-0 border-b z-50 border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">

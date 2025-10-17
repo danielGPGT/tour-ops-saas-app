@@ -7,9 +7,9 @@ import { EntityPageLayout } from "@/components/common/EntityPageLayout";
 import { DataTableColumn } from "@/components/common/DataTable";
 import { BulkAction } from "@/components/common/BulkActions";
 import { SummaryCard } from "@/components/common/SummaryCards";
-import { ProductSheet } from "./ProductSheet";
-import { ProductVariantSheet } from "./ProductVariantSheet";
-import { ProductVariantsModal } from "./ProductVariantsModal";
+import { ProductSheet } from "@/components/product-collections/ProductSheet";
+import { ProductVariantSheet } from "@/components/product-collections/ProductVariantSheet";
+import { ProductVariantsModal } from "@/components/product-collections/ProductVariantsModal";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,7 +118,7 @@ export function ProductsPageClient({
   const summaryCards: SummaryCard[] = [
     {
       id: "total-products",
-      title: "Total Products",
+      title: "Total Collections",
       value: stats.totalCount,
       icon: <Package className="h-4 w-4" />,
       description: "All product types",
@@ -130,7 +130,7 @@ export function ProductsPageClient({
     },
     {
       id: "active-products",
-      title: "Active Products",
+      title: "Active Collections",
       value: stats.activeCount,
       icon: <Package2 className="h-4 w-4" />,
       description: `${stats.totalCount > 0 ? Math.round((stats.activeCount / stats.totalCount) * 100) : 0}% active rate`,
@@ -174,7 +174,7 @@ export function ProductsPageClient({
       icon: <Package2 className="h-4 w-4" />,
       onClick: async (items: Product[]) => {
         // TODO: Implement bulk activate
-        toast.success(`Activated ${items.length} products`);
+        toast.success(`Activated ${items.length} product collections`);
       }
     },
     {
@@ -183,7 +183,7 @@ export function ProductsPageClient({
       icon: <Package className="h-4 w-4" />,
       onClick: async (items: Product[]) => {
         // TODO: Implement bulk deactivate
-        toast.success(`Deactivated ${items.length} products`);
+        toast.success(`Deactivated ${items.length} product collections`);
       }
     },
     {
@@ -197,16 +197,16 @@ export function ProductsPageClient({
         const productsWithoutVariants = items.filter(p => (p.product_variants?.length || 0) === 0);
         
         if (productsWithVariants.length > 0) {
-          toast.error(`Cannot delete ${productsWithVariants.length} product${productsWithVariants.length !== 1 ? 's' : ''} with variants. Delete variants first.`);
+          toast.error(`Cannot delete ${productsWithVariants.length} product collection${productsWithVariants.length !== 1 ? 's' : ''} with products. Delete products first.`);
           return;
         }
         
         if (productsWithoutVariants.length === 0) {
-          toast.error("No products can be deleted (all have variants)");
+          toast.error("No product collections can be deleted (all have products)");
           return;
         }
         
-        if (confirm(`Are you sure you want to delete ${productsWithoutVariants.length} product${productsWithoutVariants.length !== 1 ? 's' : ''}? This action cannot be undone.`)) {
+        if (confirm(`Are you sure you want to delete ${productsWithoutVariants.length} product collection${productsWithoutVariants.length !== 1 ? 's' : ''}? This action cannot be undone.`)) {
           try {
             const response = await fetch('/api/products/bulk-delete', {
               method: 'POST',
@@ -223,7 +223,7 @@ export function ProductsPageClient({
               toast.error(errorData.error || 'Failed to delete products');
             }
           } catch (error) {
-            toast.error('Failed to delete products');
+            toast.error('Failed to delete product collections');
           }
         }
       }
@@ -461,8 +461,8 @@ export function ProductsPageClient({
   return (
     <>
       <EntityPageLayout
-        title="Products"
-        subtitle="Manage your product catalog with variants, rates, and availability"
+        title="Product Collections"
+        subtitle="Manage your product collections (venues/establishments) and their products"
         searchQuery={searchQuery}
         onClearSearch={() => handleSearch('')}
         selectedItems={selectedProducts}
@@ -488,10 +488,10 @@ export function ProductsPageClient({
         onPageChange={handlePageChange}
         emptyState={{
           icon: <Package className="h-12 w-12 opacity-50" />,
-          title: "No products found",
+          title: "No product collections found",
           description: searchQuery 
-            ? `No products match "${searchQuery}". Try adjusting your search.`
-            : "Get started by creating your first product."
+            ? `No product collections match "${searchQuery}". Try adjusting your search.`
+            : "Get started by creating your first product collection."
         }}
       />
 
