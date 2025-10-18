@@ -1,0 +1,15 @@
+Event Name,Event Sport,Event Venue,Hotel Name,Hotel City,Hotel Country,Room Type,Bed Type,Board Type,Check In Date,Check Out Date,Total Quantity,Provisional Quantity,Is Provisional,Markup %,Extra Night Markup %,Active,Total Price per Stay (GBP),Total Price per Stay with Markup (GBP),Extra Night Price (GBP)
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,Hotel du Pin Nice Port,Nice,France,Family Room,Triple Bed,Bed & Breakfast,2026-06-05,2026-06-08,3,0,No,60,28,Yes,826.71,1322.74,352.73
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,"Hotel Villa Otero, Nice",Nice,France,Superior Room,Twin Bed,Bed & Breakfast,2026-06-05,2026-06-08,2,0,No,60,28,Yes,1102.49,1763.98,470.4
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,"Hotel Villa Otero, Nice",Nice,France,Superior Room,Double Bed,Bed & Breakfast,2026-06-04,2026-06-09,1,0,No,60,28,Yes,1837.48,2939.97,470.4
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,SoCo Hotel by HappyCulture,Paris,France,Standard Room,Twin Bed,Bed & Breakfast,2026-06-05,2026-06-08,5,0,No,60,28,Yes,876.21,1401.94,373.85
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,SoCo Hotel by HappyCulture,Paris,France,Standard Room,Double Bed,Bed & Breakfast,2026-06-05,2026-06-08,5,0,No,60,28,Yes,876.21,1401.94,373.85
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,Hotel Excelsior Nice Happy Culture,Nice,France,Standard Double Room,Double Bed,Bed & Breakfast,2026-06-04,2026-06-09,10,0,No,60,28,Yes,1863.68,2981.89,477.11
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,Fairmont Monte Carlo,Monaco,Monaco,Sea View Room,Double Bed,Bed & Breakfast,2026-06-04,2026-06-08,2,0,No,40,28,Yes,14790,20706,4732.8
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,Fairmont Monte Carlo,Monaco,Monaco,Garden View Room,Double Bed,Bed & Breakfast,2026-06-04,2026-06-08,2,0,No,40,28,Yes,9801.4,13721.96,3136.45
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,The Jay Nice Hotel,Nice,France,Standard,Double Bed,Bed & Breakfast,2026-06-05,2026-06-08,5,0,No,60,28,Yes,1327.73,2124.37,566.5
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,The Jay Nice Hotel,Nice,France,Standard,Twin Bed,Bed & Breakfast,2026-06-05,2026-06-08,5,0,No,60,28,Yes,1327.73,2124.37,566.5
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,"Hotel Villa Otero, Nice",Nice,France,Classic Room,Twin Bed,Bed & Breakfast,2026-06-05,2026-06-08,4,0,No,60,28,Yes,1039.64,1663.42,443.58
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,"Hotel Villa Otero, Nice",Nice,France,Classic Room,Double Bed,Bed & Breakfast,2026-06-05,2026-06-08,3,0,No,60,28,Yes,1039.64,1663.42,443.58
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,Hotel du Pin Nice Port,Nice,France,Standard Double Room,Twin Bed,Bed & Breakfast,2026-06-05,2026-06-08,6,0,No,60,28,Yes,717.36,1147.78,306.07
+Monaco Grand Prix 2026,Formula 1,Circuit de Monaco,Hotel du Pin Nice Port,Nice,France,Standard Double Room,Double Bed,Bed & Breakfast,2026-06-05,2026-06-08,16,0,No,60,28,Yes,719,1150.4,306.78

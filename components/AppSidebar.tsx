@@ -88,6 +88,10 @@ const data = {
       icon: Ticket,
       items: [
         {
+          title: "Quote Builder",
+          url: "/quote-builder",
+        },
+        {
           title: "Quotes",
           url: "/quotes",
         },

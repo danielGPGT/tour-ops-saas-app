@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { ContractsPageClient } from "@/components/contracts/ContractsPageClient";
+import { getCurrentOrgId } from "@/lib/hooks/use-current-org";
 
 export default async function ContractsPage({ 
   searchParams 
@@ -7,7 +8,7 @@ export default async function ContractsPage({
   searchParams?: Promise<{ q?: string; page?: string }> 
 }) {
   const resolvedSearchParams = await searchParams;
-  const orgId = 1; // TODO: from session
+  const orgId = await getCurrentOrgId();
   const q = (resolvedSearchParams?.q ?? "").trim();
   const page = Math.max(1, parseInt(resolvedSearchParams?.page ?? "1"));
   const limit = 20;
@@ -139,7 +140,6 @@ export default async function ContractsPage({
       totalPages={totalPages}
       totalItems={totalCount}
       itemsPerPage={limit}
-      searchParams={resolvedSearchParams || {}}
       searchQuery={q}
       hasDatabaseError={hasDatabaseError}
       stats={{

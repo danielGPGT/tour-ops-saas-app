@@ -10,6 +10,7 @@ import { ProductsVariantsFilters } from "@/components/products-variants/Products
 import { ClearSearchButton } from "@/components/products-variants/ClearSearchButton";
 import { ProductsVariantsPageWithWizard } from "@/components/products-variants/ProductsVariantsPageWithWizard";
 import { DatabaseStatus } from "@/components/common/DatabaseStatus";
+import { getCurrentOrgId } from "@/lib/hooks/use-current-org";
 
 export default async function ProductsVariantsPage({ 
   searchParams 
@@ -17,7 +18,7 @@ export default async function ProductsVariantsPage({
   searchParams?: Promise<{ q?: string; page?: string; type?: string; collection?: string }> 
 }) {
   const resolvedSearchParams = await searchParams;
-  const orgId = 1; // TODO: from session
+  const orgId = await getCurrentOrgId();
   const q = (resolvedSearchParams?.q ?? "").trim();
   const page = Math.max(1, parseInt(resolvedSearchParams?.page ?? "1"));
   const type = resolvedSearchParams?.type ?? "";

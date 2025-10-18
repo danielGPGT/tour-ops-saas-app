@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { createClient } from "@/utils/supabase/server";
 import { DatabaseStatus } from "@/components/common/DatabaseStatus";
 import { ProductTypesPageClient } from "@/components/product-types/ProductTypesPageClient";
+import { getCurrentOrgId } from "@/lib/hooks/use-current-org";
 
 export default async function ProductTypesPage({
   searchParams,
@@ -14,7 +15,7 @@ export default async function ProductTypesPage({
   const limit = 50;
   const offset = (page - 1) * limit;
 
-  const orgId = 1; // TODO: from session
+  const orgId = await getCurrentOrgId();
   const supabase = await createClient();
 
   // Execute queries with Supabase

@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { ProductManagementClient } from "@/components/products/ProductManagementClient";
 import { DatabaseStatus } from "@/components/common/DatabaseStatus";
 import { notFound } from "next/navigation";
+import { getCurrentOrgId } from "@/lib/hooks/use-current-org";
 
 export default async function ProductManagementPage({ 
   params 
@@ -10,7 +11,7 @@ export default async function ProductManagementPage({
 }) {
   const resolvedParams = await params;
   const productId = parseInt(resolvedParams.id);
-  const orgId = 1; // TODO: from session
+  const orgId = await getCurrentOrgId();
 
   if (isNaN(productId)) {
     notFound();

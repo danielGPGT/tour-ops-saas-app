@@ -4,8 +4,10 @@ import { Bell, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import {Top} from "@/components/top";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import Image from "next/image";
 import { useTheme } from "next-themes";
+
 export function Header() {
   const { theme, systemTheme } = useTheme();
 
@@ -15,11 +17,11 @@ export function Header() {
       <div className="h-14 px-4 md:px-4 flex items-center justify-between">
         
         <a href="/">
-                <Image src={theme === "dark" ? "/newlight.png" : "/newdark.png"} alt="Pandora" width={150} height={150} />  
-              </a>
+          <Image src={theme === "dark" ? "/newlight.png" : "/newdark.png"} alt="Pandora" width={150} height={150} />  
+        </a>
 
-      
         <div className="flex items-center gap-2">
+          <OrganizationSwitcher />
           <button className="inline-flex items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm hover:bg-muted">
             <Search className="h-4 w-4" />
             <span className="hidden sm:inline">Search</span>

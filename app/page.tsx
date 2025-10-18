@@ -1,6 +1,22 @@
 import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams?: Promise<{ org?: string }> }) {
+  const resolvedSearchParams = await searchParams;
+  
+  // Handle organization switching
+  if (resolvedSearchParams?.org) {
+    const orgId = parseInt(resolvedSearchParams.org);
+    const cookieStore = await cookies();
+    cookieStore.set('currentOrgId', orgId.toString(), { 
+      path: '/', 
+      maxAge: 31536000 
+    });
+    
+    // Redirect to suppliers page to see the organization data
+    redirect('/suppliers');
+  }
   const supabase = await createClient();
   const {
     data: { user }

@@ -1,11 +1,10 @@
 import { createClient } from '@/utils/supabase/server';
 import { PoolManagementClient } from '@/components/pools/PoolManagementClient';
+import { getCurrentOrgId } from '@/lib/hooks/use-current-org';
 
 export default async function PoolsPage() {
   const supabase = await createClient();
-  
-  // Get current organization (in real app, this would come from auth)
-  const orgId = 1; // TODO: Get from auth context
+  const orgId = await getCurrentOrgId();
   
   // Fetch pools with related data
   const { data: pools, error: poolsError } = await supabase

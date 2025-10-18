@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { ProductsPageClient } from "@/components/products/ProductsPageClient";
 import { DatabaseStatus } from "@/components/common/DatabaseStatus";
+import { getCurrentOrgId } from "@/lib/hooks/use-current-org";
 
 export default async function ProductsPage({ 
   searchParams 
@@ -8,7 +9,7 @@ export default async function ProductsPage({
   searchParams?: Promise<{ q?: string; page?: string; type?: string }> 
 }) {
   const resolvedSearchParams = await searchParams;
-  const orgId = 1; // TODO: from session
+  const orgId = await getCurrentOrgId();
   const q = (resolvedSearchParams?.q ?? "").trim();
   const page = Math.max(1, parseInt(resolvedSearchParams?.page ?? "1"));
   const type = resolvedSearchParams?.type ?? "";

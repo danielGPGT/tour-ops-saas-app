@@ -11,10 +11,11 @@ import { SuppliersSearch } from "@/components/suppliers/SuppliersSearch";
 import { ClearSearchButton } from "@/components/suppliers/ClearSearchButton";
 import { DatabaseStatus } from "@/components/common/DatabaseStatus";
 import { format } from "date-fns";
+import { getCurrentOrgId } from "@/lib/hooks/use-current-org";
 
 export default async function SuppliersPage({ searchParams }: { searchParams?: Promise<{ q?: string; page?: string }> }) {
   const resolvedSearchParams = await searchParams;
-  const orgId = 1; // TODO: from session
+  const orgId = await getCurrentOrgId();
   const q = (resolvedSearchParams?.q ?? "").trim();
   const page = Math.max(1, parseInt(resolvedSearchParams?.page ?? "1")); // Ensure page is at least 1
   const limit = 20; // Increased from 10 for better UX with large datasets
