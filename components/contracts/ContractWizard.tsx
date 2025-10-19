@@ -6,8 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
-import { CheckCircle, Circle, ArrowLeft, ArrowRight } from 'lucide-react'
+import { CheckCircle, Circle, ArrowLeft, ArrowRight, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ContractDocumentUpload } from './ContractDocumentUpload'
 
 interface ContractWizardProps {
   onComplete: (contractData: any) => void
@@ -20,6 +21,7 @@ const steps = [
   { id: 'terms', title: 'Contract Terms', description: 'Define commission, payment terms, and conditions' },
   { id: 'policies', title: 'Policies', description: 'Cancellation and payment policies' },
   { id: 'allocation', title: 'Allocation & Inventory', description: 'Product allocation and inventory limits' },
+  { id: 'documents', title: 'Contract Documents', description: 'Upload contract documents and files' },
   { id: 'review', title: 'Review & Create', description: 'Review all details before creating contract' }
 ]
 
@@ -34,6 +36,7 @@ export function ContractWizard({ onComplete, onCancel, initialData }: ContractWi
     cancellation_policy: {},
     payment_policy: {},
     allocation: {},
+    documents: [],
     ...initialData
   })
 
@@ -142,6 +145,12 @@ export function ContractWizard({ onComplete, onCancel, initialData }: ContractWi
             />
           )}
           {currentStep === 4 && (
+            <DocumentsStep 
+              data={formData} 
+              onUpdate={updateFormData} 
+            />
+          )}
+          {currentStep === 5 && (
             <ReviewStep 
               data={formData} 
               onUpdate={updateFormData} 
@@ -497,7 +506,78 @@ function ReviewStep({ data, onUpdate }: { data: any, onUpdate: (field: string, v
             </div>
           </CardContent>
         </Card>
+        
+        {data.documents && data.documents.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Documents ({data.documents.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {data.documents.map((doc: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-2 border rounded">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="w-4 h-4" />
+                      <span className="text-sm">{doc.name}</span>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {doc.type}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
+    </div>
+  )
+}
+
+function DocumentsStep({ data, onUpdate }: { data: any, onUpdate: (field: string, value: any) => void }) {
+  const handleDocumentsUpload = (documents: any[]) => {
+    onUpdate('documents', documents)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <FileText className="w-12 h-12 mx-auto mb-4 text-primary" />
+        <h3 className="text-lg font-medium mb-2">Contract Documents</h3>
+        <p className="text-muted-foreground">
+          Upload contract documents, terms sheets, and other related files
+        </p>
+      </div>
+
+      <ContractDocumentUpload
+        contractId={data.supplier_id || 1} // Use supplier_id as temp contract ID
+        orgId={100} // Default org ID for now
+        onUploadComplete={handleDocumentsUpload}
+        existingDocuments={data.documents || []}
+      />
+
+      {data.documents && data.documents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Uploaded Documents ({data.documents.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {data.documents.map((doc: any, index: number) => (
+                <div key={index} className="flex items-center justify-between p-2 border rounded">
+                  <div className="flex items-center space-x-2">
+                    <FileText className="w-4 h-4" />
+                    <span className="text-sm">{doc.name}</span>
+                  </div>
+                  <Badge variant="outline" className="text-xs">
+                    {doc.type}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

@@ -127,7 +127,7 @@ export function ContractsPageClient({
 
   // Render different views based on viewMode
   if (viewMode === 'wizard') {
-    return (
+        return (
       <ContractWizard
         onComplete={handleWizardComplete}
         onCancel={handleWizardCancel}
@@ -137,7 +137,7 @@ export function ContractsPageClient({
   }
 
   if (viewMode === 'detail' && selectedContract) {
-    return (
+          return (
       <ContractDetailView
         contract={selectedContract}
         onEdit={() => handleEditContract(selectedContract)}
@@ -149,7 +149,7 @@ export function ContractsPageClient({
   }
 
   if (viewMode === 'versions' && selectedContract) {
-    return (
+        return (
       <div className="max-w-6xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -162,7 +162,7 @@ export function ContractsPageClient({
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Contracts
           </Button>
-        </div>
+            </div>
         <ContractVersionManager
           contractId={selectedContract.id}
           versions={selectedContract.contract_versions || []}
@@ -171,12 +171,12 @@ export function ContractsPageClient({
           onDeleteVersion={(versionId) => console.log('Delete version:', versionId)}
           onActivateVersion={(versionId) => console.log('Activate version:', versionId)}
         />
-      </div>
+          </div>
     )
   }
 
   if (viewMode === 'terms' && selectedContract) {
-    return (
+        return (
       <div className="max-w-6xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -188,15 +188,15 @@ export function ContractsPageClient({
           <Button variant="outline" onClick={handleBackToList}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Contracts
-          </Button>
+              </Button>
         </div>
         <ContractTermsEditor
           contractId={selectedContract.id}
           terms={selectedContract.terms || {}}
           onSave={(terms) => console.log('Save terms:', terms)}
           onCancel={handleBackToList}
-        />
-      </div>
+            />
+          </div>
     )
   }
 
@@ -361,31 +361,31 @@ export function ContractsPageClient({
   }
 
   return (
-    <EntityPageLayout
-      title="Contracts"
+      <EntityPageLayout
+        title="Contracts"
       subtitle="Manage supplier contracts and agreements"
-      searchPlaceholder="Search contracts..."
-      searchParam="q"
-      data={contracts}
-      columns={columns}
+        searchPlaceholder="Search contracts..."
+        searchParam="q"
+        data={contracts}
+        columns={columns}
       selectedItems={selectedItems}
       onSelectionChange={setSelectedItems}
       getId={(contract) => contract.id}
       emptyState={emptyState}
-      bulkActions={bulkActions}
-      getItemName={(contract) => contract.reference}
+        bulkActions={bulkActions}
+        getItemName={(contract) => contract.reference}
       getItemId={(contract) => contract.id}
-      entityName="contract"
+        entityName="contract"
       onSelectionClear={() => setSelectedItems([])}
       isLoading={false}
-      currentPage={currentPage}
-      totalPages={totalPages}
-      totalItems={totalItems}
-      itemsPerPage={itemsPerPage}
-      onPageChange={handlePageChange}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onPageChange={handlePageChange}
       searchParams={{}}
-      summaryCards={summaryCards}
-      primaryAction={{
+        summaryCards={summaryCards}
+        primaryAction={{
         label: 'New Contract',
         icon: <Plus className="w-4 h-4" />,
         onClick: handleCreateContract
@@ -402,8 +402,8 @@ export function ContractsPageClient({
           onClick: () => console.log('Export contracts')
         }
       ]}
-      searchQuery={searchQuery}
-      onClearSearch={handleClearSearch}
+        searchQuery={searchQuery}
+        onClearSearch={handleClearSearch}
     />
   )
 }
