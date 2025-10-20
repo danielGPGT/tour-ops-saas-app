@@ -11,6 +11,12 @@ const ContractPayloadSchema = z.object({
   supplier_id: z.bigint(),
   reference: z.string().min(1, "Contract reference is required").trim(),
   status: z.enum(["active", "inactive", "draft", "expired"]).default("active"),
+  contract_type: z.enum(["net_rate", "commissionable", "allocation"]).optional(),
+  signed_date: z.date().optional(),
+  signed_document_url: z.string().url().optional(),
+  terms_and_conditions: z.string().optional(),
+  special_terms: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 function handleError(error: unknown, operation: string) {
@@ -62,7 +68,13 @@ export async function createContract(data: z.infer<typeof ContractPayloadSchema>
         org_id: DEFAULT_ORG_ID,
         supplier_id: validatedData.supplier_id,
         reference: validatedData.reference,
-        status: validatedData.status
+        status: validatedData.status,
+        contract_type: validatedData.contract_type,
+        signed_date: validatedData.signed_date,
+        signed_document_url: validatedData.signed_document_url,
+        terms_and_conditions: validatedData.terms_and_conditions,
+        special_terms: validatedData.special_terms,
+        notes: validatedData.notes
       }
     });
 
@@ -122,7 +134,13 @@ export async function updateContract(id: bigint, data: z.infer<typeof ContractPa
       data: {
         supplier_id: validatedData.supplier_id,
         reference: validatedData.reference,
-        status: validatedData.status
+        status: validatedData.status,
+        contract_type: validatedData.contract_type,
+        signed_date: validatedData.signed_date,
+        signed_document_url: validatedData.signed_document_url,
+        terms_and_conditions: validatedData.terms_and_conditions,
+        special_terms: validatedData.special_terms,
+        notes: validatedData.notes
       }
     });
 

@@ -1,4 +1,4 @@
-'use client'
+// Deprecated: replaced by ContractManagerPage versions tab
 
 import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'

@@ -70,12 +70,9 @@ const data = {
         },
         {
           title: "Rate Plans",
-          url: "/rates",
+          url: "/rate-plans",
         },
-        {
-          title: "Pools",
-          url: "/pools",
-        },
+        // Pools deprecated in MVP cleanup
         {
           title: "Availability",
           url: "/availability",

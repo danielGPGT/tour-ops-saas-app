@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { EntityPageLayout } from '@/components/common/EntityPageLayout'
 import { DatabaseStatus } from '@/components/common/DatabaseStatus'
-// Deprecated: UnifiedContractManager has been replaced by ContractManagerPage
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { 
@@ -21,6 +20,7 @@ import {
   Clock,
   ArrowLeft
 } from 'lucide-react'
+import { ContractSheetQuickForm } from './ContractSheetQuickForm'
 
 interface ContractsPageClientProps {
   contracts: any[]
@@ -34,7 +34,7 @@ interface ContractsPageClientProps {
   itemsPerPage: number
 }
 
-export function ContractsPageClient({
+export function ContractsPageClientNew({
   contracts,
   suppliers,
   stats,
@@ -47,28 +47,14 @@ export function ContractsPageClient({
 }: ContractsPageClientProps) {
   const router = useRouter()
   const [selectedItems, setSelectedItems] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState<'list' | 'manager'>('list')
-  const [selectedContract, setSelectedContract] = useState<any>(null)
+  const [openQuickForm, setOpenQuickForm] = useState(false)
 
   const handleCreateContract = () => {
-    setSelectedContract(null)
-    setViewMode('manager')
+    setOpenQuickForm(true)
   }
 
-  const handleEditContract = (contract: any) => {
-    setSelectedContract(contract)
-    setViewMode('manager')
-  }
-
-  const handleManagerComplete = () => {
-    setViewMode('list')
-    setSelectedContract(null)
-    router.refresh()
-  }
-
-  const handleBackToList = () => {
-    setViewMode('list')
-    setSelectedContract(null)
+  const handleViewContract = (contract: any) => {
+    router.push(`/contracts/${contract.id}`)
   }
 
   const handlePageChange = (page: number) => {
@@ -101,81 +87,6 @@ export function ContractsPageClient({
 
   if (hasDatabaseError) {
     return <DatabaseStatus />
-  }
-
-  // Render different views based on viewMode
-  if (viewMode === 'wizard') {
-        return (
-      <ContractWizard
-        onComplete={handleWizardComplete}
-        onCancel={handleWizardCancel}
-        initialData={selectedContract}
-      />
-    )
-  }
-
-  if (viewMode === 'detail' && selectedContract) {
-          return (
-      <ContractDetailView
-        contract={selectedContract}
-        onEdit={() => handleEditContract(selectedContract)}
-        onCreateVersion={() => handleViewVersions(selectedContract)}
-        onViewHistory={() => handleViewVersions(selectedContract)}
-        onBack={handleBackToList}
-      />
-    )
-  }
-
-  if (viewMode === 'versions' && selectedContract) {
-        return (
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Contract Versions</h1>
-            <p className="text-muted-foreground">
-              Manage versions for {selectedContract.reference}
-            </p>
-          </div>
-          <Button variant="outline" onClick={handleBackToList}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Contracts
-          </Button>
-            </div>
-        <ContractVersionManager
-          contractId={selectedContract.id}
-          versions={selectedContract.contract_versions || []}
-          onCreateVersion={(versionData) => console.log('Create version:', versionData)}
-          onEditVersion={(versionId, versionData) => console.log('Edit version:', versionId, versionData)}
-          onDeleteVersion={(versionId) => console.log('Delete version:', versionId)}
-          onActivateVersion={(versionId) => console.log('Activate version:', versionId)}
-        />
-          </div>
-    )
-  }
-
-  if (viewMode === 'terms' && selectedContract) {
-        return (
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Edit Contract Terms</h1>
-            <p className="text-muted-foreground">
-              Edit terms for {selectedContract.reference}
-            </p>
-          </div>
-          <Button variant="outline" onClick={handleBackToList}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Contracts
-              </Button>
-        </div>
-        <ContractTermsEditor
-          contractId={selectedContract.id}
-          terms={selectedContract.terms || {}}
-          onSave={(terms) => console.log('Save terms:', terms)}
-          onCancel={handleBackToList}
-            />
-          </div>
-    )
   }
 
   // Summary Cards Data
@@ -269,7 +180,8 @@ export function ContractsPageClient({
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
               contract.contract_type === 'net_rate' ? 'bg-green-100 text-green-800' :
               contract.contract_type === 'commissionable' ? 'bg-blue-100 text-blue-800' :
-              'bg-purple-100 text-purple-800'
+              contract.contract_type === 'allocation' ? 'bg-purple-100 text-purple-800' :
+              'bg-gray-100 text-gray-800'
             }`}>
               {contract.contract_type.replace('_', ' ')}
             </span>
@@ -285,6 +197,25 @@ export function ContractsPageClient({
       render: (contract: any) => (
         <div className="text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
           {contract.signed_date ? formatDate(contract.signed_date) : 'Not signed'}
+        </div>
+      )
+    },
+    {
+      key: 'document',
+      header: 'Document',
+      render: (contract: any) => (
+        <div className="flex items-center space-x-2">
+          {contract.signed_document_url ? (
+            <div className="flex items-center space-x-1">
+              <FileText className="w-4 h-4 text-green-600" />
+              <span className="text-xs text-green-600">Uploaded</span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-1">
+              <FileText className="w-4 h-4 text-gray-400" />
+              <span className="text-xs text-gray-500">None</span>
+            </div>
+          )}
         </div>
       )
     },
@@ -313,17 +244,10 @@ export function ContractsPageClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleEditContract(contract)}
+            onClick={() => handleViewContract(contract)}
             className="h-8 w-8 p-0"
           >
             <Edit className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-          >
-            <MoreHorizontal className="w-4 h-4" />
           </Button>
         </div>
       )
@@ -358,31 +282,32 @@ export function ContractsPageClient({
   }
 
   return (
-      <EntityPageLayout
-        title="Contracts"
+    <>
+    <EntityPageLayout
+      title="Contracts"
       subtitle="Manage supplier contracts and agreements"
-        searchPlaceholder="Search contracts..."
-        searchParam="q"
-        data={contracts}
-        columns={columns}
+      searchPlaceholder="Search contracts..."
+      searchParam="q"
+      data={contracts}
+      columns={columns}
       selectedItems={selectedItems}
       onSelectionChange={setSelectedItems}
       getId={(contract) => contract.id}
       emptyState={emptyState}
-        bulkActions={bulkActions}
-        getItemName={(contract) => contract.reference}
+      bulkActions={bulkActions}
+      getItemName={(contract) => contract.reference}
       getItemId={(contract) => contract.id}
-        entityName="contract"
+      entityName="contract"
       onSelectionClear={() => setSelectedItems([])}
       isLoading={false}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        itemsPerPage={itemsPerPage}
-        onPageChange={handlePageChange}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      totalItems={totalItems}
+      itemsPerPage={itemsPerPage}
+      onPageChange={handlePageChange}
       searchParams={{}}
-        summaryCards={summaryCards}
-        primaryAction={{
+      summaryCards={summaryCards}
+      primaryAction={{
         label: 'New Contract',
         icon: <Plus className="w-4 h-4" />,
         onClick: handleCreateContract
@@ -399,8 +324,19 @@ export function ContractsPageClient({
           onClick: () => console.log('Export contracts')
         }
       ]}
-        searchQuery={searchQuery}
-        onClearSearch={handleClearSearch}
+      searchQuery={searchQuery}
+      onClearSearch={handleClearSearch}
     />
+    <ContractSheetQuickForm
+      suppliers={suppliers}
+      trigger={<span />}
+      open={openQuickForm}
+      onOpenChange={setOpenQuickForm}
+      onSuccess={() => {
+        setOpenQuickForm(false)
+        router.refresh()
+      }}
+    />
+    </>
   )
 }

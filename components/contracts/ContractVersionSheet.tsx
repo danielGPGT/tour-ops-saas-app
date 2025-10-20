@@ -1,196 +1,138 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Calendar, FileText, AlertCircle, Building2, Clock, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { SheetForm } from "@/components/ui/SheetForm";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
+import { 
+  CheckCircle2, 
+  Clock, 
+  AlertCircle, 
+  FileText, 
+  Building2, 
+  Calendar, 
+  DollarSign, 
+  Percent,
+  Target,
+  Shield,
+  TrendingDown
+} from "lucide-react";
+import { SheetForm } from "@/components/ui/SheetForm";
 import { createContractVersion, updateContractVersion, getContractVersionById } from "@/app/contracts/versions/actions";
 import { toast } from "sonner";
 
 type ContractVersionFormData = {
   contract_id: bigint;
-  valid_from: string;
-  valid_to: string;
-  cancellation_policy: Record<string, any>;
-  payment_policy: Record<string, any>;
-  terms: Record<string, any>;
-  supersedes_id?: bigint;
-};
-
-type ContractVersion = {
-  id: bigint;
-  contract_id: bigint;
   valid_from: Date;
   valid_to: Date;
-  cancellation_policy: Record<string, any>;
-  payment_policy: Record<string, any>;
-  terms: Record<string, any>;
-  supersedes_id?: bigint;
-  created_at: Date;
-  updated_at: Date;
-};
-
-type Contract = {
-  id: bigint;
-  reference: string;
-  suppliers: {
-    id: bigint;
-    name: string;
-  };
+  cancellation_policy?: Record<string, any>;
+  payment_policy?: Record<string, any>;
+  terms?: Record<string, any>;
+  commission_rate?: number;
+  currency: string;
+  booking_cutoff_days?: number;
+  // Attrition fields
+  attrition_applies: boolean;
+  committed_quantity?: number;
+  minimum_pickup_percent?: number;
+  penalty_calculation?: string;
+  grace_allowance?: number;
+  attrition_period_type?: string;
 };
 
 type Props = {
   trigger: React.ReactNode;
   contractId: bigint;
-  contractVersionId?: bigint;
+  versionId?: bigint;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onSuccess?: () => void;
 };
 
-export function ContractVersionSheet({ 
-  trigger, 
-  contractId, 
-  contractVersionId, 
-  open, 
-  onOpenChange, 
-  onSuccess 
-}: Props) {
+export function ContractVersionSheet({ trigger, contractId, versionId, open, onOpenChange, onSuccess }: Props) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = open ?? internalOpen;
   const setIsOpen = onOpenChange ?? setInternalOpen;
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [contract, setContract] = useState<Contract | null>(null);
 
-  const isEditing = !!contractVersionId;
-
+  const isEditing = !!versionId;
+  
+  // Initial form data
   const initialFormData: ContractVersionFormData = {
     contract_id: contractId,
-    valid_from: "",
-    valid_to: "",
-    cancellation_policy: {},
-    payment_policy: {},
-    terms: {},
-    supersedes_id: undefined
+    valid_from: new Date(),
+    valid_to: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+    currency: "USD",
+    attrition_applies: false
   };
 
+  // Load contract version data when editing
   const [versionData, setVersionData] = useState<ContractVersionFormData | null>(null);
-
-  // Load contract and version data
+  
   useEffect(() => {
-    if (isOpen && contractId) {
-      const loadData = async () => {
+    if (isEditing && isOpen && versionId) {
+      const loadVersion = async () => {
         try {
-          if (isEditing && contractVersionId) {
-            const version = await getContractVersionById(contractVersionId);
-            if (version) {
-              setContract({
-                id: version.contracts.id,
-                reference: version.contracts.reference,
-                suppliers: version.contracts.suppliers
-              });
-              
-              setVersionData({
-                contract_id: version.contract_id,
-                valid_from: version.valid_from.toISOString().split('T')[0],
-                valid_to: version.valid_to.toISOString().split('T')[0],
-                cancellation_policy: version.cancellation_policy as Record<string, any>,
-                payment_policy: version.payment_policy as Record<string, any>,
-                terms: version.terms as Record<string, any>,
-                supersedes_id: version.supersedes_id
-              });
-            }
-          } else {
-            // For new versions, set default date range (today to 1 year from now)
-            const today = new Date();
-            const oneYearFromNow = new Date();
-            oneYearFromNow.setFullYear(today.getFullYear() + 1);
-            
+          const version = await getContractVersionById(versionId);
+          if (version) {
             setVersionData({
-              ...initialFormData,
-              valid_from: today.toISOString().split('T')[0],
-              valid_to: oneYearFromNow.toISOString().split('T')[0]
-            });
-            
-            // Load contract info for display
-            // Note: In a real app, you'd fetch this from the contracts API
-            setContract({
-              id: contractId,
-              reference: `Contract-${contractId}`,
-              suppliers: { id: BigInt(1), name: "Sample Supplier" }
+              contract_id: version.contract_id,
+              valid_from: new Date(version.valid_from),
+              valid_to: new Date(version.valid_to),
+              cancellation_policy: version.cancellation_policy,
+              payment_policy: version.payment_policy,
+              terms: version.terms,
+              commission_rate: version.commission_rate,
+              currency: version.currency,
+              booking_cutoff_days: version.booking_cutoff_days,
+              attrition_applies: version.attrition_applies,
+              committed_quantity: version.committed_quantity,
+              minimum_pickup_percent: version.minimum_pickup_percent,
+              penalty_calculation: version.penalty_calculation,
+              grace_allowance: version.grace_allowance,
+              attrition_period_type: version.attrition_period_type
             });
           }
         } catch (error) {
           toast.error("Failed to load contract version details");
-          console.error("Error loading data:", error);
+          console.error("Error loading version:", error);
         }
       };
-      loadData();
+      loadVersion();
     }
-  }, [isOpen, contractId, contractVersionId, isEditing]);
+  }, [isEditing, isOpen, versionId]);
 
   const validateForm = (values: ContractVersionFormData): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!values.valid_from.trim()) {
-      newErrors.valid_from = "Valid from date is required";
+    // Date validation
+    if (values.valid_to <= values.valid_from) {
+      newErrors.valid_to = "End date must be after start date";
     }
 
-    if (!values.valid_to.trim()) {
-      newErrors.valid_to = "Valid to date is required";
-    }
-
-    if (values.valid_from && values.valid_to) {
-      const fromDate = new Date(values.valid_from);
-      const toDate = new Date(values.valid_to);
-      
-      if (fromDate >= toDate) {
-        newErrors.valid_to = "Valid to date must be after valid from date";
+    // Attrition validation
+    if (values.attrition_applies) {
+      if (!values.committed_quantity || values.committed_quantity <= 0) {
+        newErrors.committed_quantity = "Committed quantity is required when attrition applies";
+      }
+      if (!values.minimum_pickup_percent || values.minimum_pickup_percent < 0 || values.minimum_pickup_percent > 100) {
+        newErrors.minimum_pickup_percent = "Minimum pickup percent must be between 0 and 100";
+      }
+      if (!values.penalty_calculation) {
+        newErrors.penalty_calculation = "Penalty calculation is required when attrition applies";
+      }
+      if (!values.attrition_period_type) {
+        newErrors.attrition_period_type = "Attrition period type is required when attrition applies";
       }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (values: ContractVersionFormData) => {
-    setHasAttemptedSubmit(true);
-    
-    if (!validateForm(values)) {
-      toast.error("Please fix the errors below");
-      return;
-    }
-
-    const payload = {
-      contract_id: values.contract_id,
-      valid_from: values.valid_from.trim(),
-      valid_to: values.valid_to.trim(),
-      cancellation_policy: values.cancellation_policy,
-      payment_policy: values.payment_policy,
-      terms: values.terms,
-      supersedes_id: values.supersedes_id
-    };
-
-    try {
-      if (isEditing && contractVersionId) {
-        await updateContractVersion(contractVersionId, payload, { redirect: false });
-        toast.success("Contract version updated successfully");
-      } else {
-        await createContractVersion(payload, { redirect: false });
-        toast.success("Contract version created successfully");
-      }
-      
-      onSuccess?.();
-      setIsOpen(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save contract version");
-    }
   };
 
   return (
@@ -205,211 +147,323 @@ export function ContractVersionSheet({
             {isEditing ? "Edit Contract Version" : "Create Contract Version"}
           </div>
         }
-        description="Manage contract version details and effective dates"
+        description="Manage contract version details, policies, and attrition tracking"
         initial={versionData || initialFormData}
-        onSubmit={handleSubmit}
+        onSubmit={async (values) => {
+          if (!validateForm(values)) {
+            toast.error("Please fix the errors below");
+            return;
+          }
+
+          const payload = {
+            contract_id: values.contract_id,
+            valid_from: values.valid_from,
+            valid_to: values.valid_to,
+            cancellation_policy: values.cancellation_policy,
+            payment_policy: values.payment_policy,
+            terms: values.terms,
+            commission_rate: values.commission_rate,
+            currency: values.currency,
+            booking_cutoff_days: values.booking_cutoff_days,
+            attrition_applies: values.attrition_applies,
+            committed_quantity: values.committed_quantity,
+            minimum_pickup_percent: values.minimum_pickup_percent,
+            penalty_calculation: values.penalty_calculation,
+            grace_allowance: values.grace_allowance,
+            attrition_period_type: values.attrition_period_type
+          };
+
+          if (isEditing && versionId) {
+            await updateContractVersion(versionId, payload, { redirect: false });
+            toast.success("Contract version updated successfully");
+          } else {
+            await createContractVersion(payload, { redirect: false });
+            toast.success("Contract version created successfully");
+          }
+
+          onSuccess?.();
+        }}
         afterSubmit={() => setIsOpen(false)}
       >
         {({ values, set }) => (
           <div className="space-y-6">
-            {/* Contract Info */}
-            {contract && (
-              <div className="p-3 border rounded-lg bg-muted/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Contract</span>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">{contract.reference}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Supplier: {contract.suppliers.name}
-                  </p>
-                </div>
+            {/* Date Range */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Valid From *
+                </Label>
+                <Input
+                  type="date"
+                  value={values.valid_from.toISOString().split('T')[0]}
+                  onChange={(e) => set('valid_from', new Date(e.target.value))}
+                />
               </div>
-            )}
-
-            {/* Valid From Date */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Valid From *
-                <Tooltip>
-                  <TooltipTrigger>
-                    <AlertCircle className="h-3 w-3 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Date when this contract version becomes effective</p>
-                  </TooltipContent>
-                </Tooltip>
-              </Label>
-              <Input
-                type="date"
-                value={values.valid_from}
-                onChange={(e) => set('valid_from', e.target.value)}
-                className={hasAttemptedSubmit && errors.valid_from ? "border-destructive" : ""}
-              />
-              {hasAttemptedSubmit && errors.valid_from && (
-                <p className="text-sm text-destructive">{errors.valid_from}</p>
-              )}
-            </div>
-
-            {/* Valid To Date */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Valid To *
-                <Tooltip>
-                  <TooltipTrigger>
-                    <AlertCircle className="h-3 w-3 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Date when this contract version expires</p>
-                  </TooltipContent>
-                </Tooltip>
-              </Label>
-              <Input
-                type="date"
-                value={values.valid_to}
-                onChange={(e) => set('valid_to', e.target.value)}
-                className={hasAttemptedSubmit && errors.valid_to ? "border-destructive" : ""}
-              />
-              {hasAttemptedSubmit && errors.valid_to && (
-                <p className="text-sm text-destructive">{errors.valid_to}</p>
-              )}
-            </div>
-
-            {/* Cancellation Policy */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Cancellation Policy
-                <Tooltip>
-                  <TooltipTrigger>
-                    <AlertCircle className="h-3 w-3 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Terms and conditions for cancellations</p>
-                  </TooltipContent>
-                </Tooltip>
-              </Label>
-              <Textarea
-                value={JSON.stringify(values.cancellation_policy, null, 2)}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    set('cancellation_policy', parsed);
-                  } catch {
-                    // Invalid JSON, keep as is for now
-                  }
-                }}
-                placeholder='{"free_cancellation_days": 7, "cancellation_fee_percent": 10}'
-                className="min-h-[100px] font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter cancellation policy as JSON (e.g., free cancellation days, fees, etc.)
-              </p>
-            </div>
-
-            {/* Payment Policy */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                Payment Policy
-                <Tooltip>
-                  <TooltipTrigger>
-                    <AlertCircle className="h-3 w-3 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Payment terms and conditions</p>
-                  </TooltipContent>
-                </Tooltip>
-              </Label>
-              <Textarea
-                value={JSON.stringify(values.payment_policy, null, 2)}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    set('payment_policy', parsed);
-                  } catch {
-                    // Invalid JSON, keep as is for now
-                  }
-                }}
-                placeholder='{"deposit_percent": 20, "final_payment_days": 30}'
-                className="min-h-[100px] font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter payment policy as JSON (e.g., deposit requirements, payment terms, etc.)
-              </p>
-            </div>
-
-            {/* Terms */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Terms & Conditions
-                <Tooltip>
-                  <TooltipTrigger>
-                    <AlertCircle className="h-3 w-3 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Additional terms and conditions</p>
-                  </TooltipContent>
-                </Tooltip>
-              </Label>
-              <Textarea
-                value={JSON.stringify(values.terms, null, 2)}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    set('terms', parsed);
-                  } catch {
-                    // Invalid JSON, keep as is for now
-                  }
-                }}
-                placeholder='{"liability_limits": 100000, "insurance_required": true}'
-                className="min-h-[100px] font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter terms and conditions as JSON (e.g., liability, insurance, etc.)
-              </p>
-            </div>
-
-            {/* Version Status */}
-            <div className="p-3 border rounded-lg bg-muted/30">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Version Status</span>
-              </div>
-              <div className="space-y-1">
-                {values.valid_from && values.valid_to && (
-                  <>
-                    <p className="text-sm">
-                      <span className="font-medium">Duration:</span>{" "}
-                      {(() => {
-                        const fromDate = new Date(values.valid_from);
-                        const toDate = new Date(values.valid_to);
-                        const diffTime = Math.abs(toDate.getTime() - fromDate.getTime());
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        return `${diffDays} days`;
-                      })()}
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-medium">Status:</span>{" "}
-                      <Badge variant="outline" className="text-xs">
-                        {(() => {
-                          const now = new Date();
-                          const fromDate = new Date(values.valid_from);
-                          const toDate = new Date(values.valid_to);
-                          
-                          if (now < fromDate) return "Future";
-                          if (now > toDate) return "Expired";
-                          return "Active";
-                        })()}
-                      </Badge>
-                    </p>
-                  </>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Valid To *
+                </Label>
+                <Input
+                  type="date"
+                  value={values.valid_to.toISOString().split('T')[0]}
+                  onChange={(e) => set('valid_to', new Date(e.target.value))}
+                />
+                {hasAttemptedSubmit && errors.valid_to && (
+                  <p className="text-sm text-destructive">{errors.valid_to}</p>
                 )}
               </div>
+            </div>
+
+            {/* Commission Rate */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Percent className="h-4 w-4" />
+                Commission Rate (%)
+                <Tooltip>
+                  <TooltipTrigger>
+                    <AlertCircle className="h-3 w-3 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Commission rate for commissionable contracts (0-100%)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={values.commission_rate || ""}
+                onChange={(e) => set('commission_rate', e.target.value ? parseFloat(e.target.value) : undefined)}
+                placeholder="15.5"
+              />
+            </div>
+
+            {/* Currency */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Currency
+              </Label>
+              <Select
+                value={values.currency}
+                onValueChange={(value) => set('currency', value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD - US Dollar</SelectItem>
+                  <SelectItem value="EUR">EUR - Euro</SelectItem>
+                  <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                  <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
+                  <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Booking Cutoff */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Booking Cutoff (Days)
+                <Tooltip>
+                  <TooltipTrigger>
+                    <AlertCircle className="h-3 w-3 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Days before travel to cut off bookings</p>
+                  </TooltipContent>
+                </Tooltip>
+              </Label>
+              <Input
+                type="number"
+                min="1"
+                value={values.booking_cutoff_days || ""}
+                onChange={(e) => set('booking_cutoff_days', e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="7"
+              />
+            </div>
+
+            {/* Attrition Section */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-5 w-5" />
+                <h3 className="text-lg font-semibold">Attrition Tracking</h3>
+              </div>
+
+              {/* Attrition Toggle */}
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="attrition_applies"
+                  checked={values.attrition_applies}
+                  onCheckedChange={(checked) => set('attrition_applies', checked)}
+                />
+                <Label htmlFor="attrition_applies" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Attrition tracking applies to this contract version
+                </Label>
+              </div>
+
+              {values.attrition_applies && (
+                <div className="space-y-4 pl-4 border-l-2 border-muted">
+                  {/* Committed Quantity */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Committed Quantity *
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <AlertCircle className="h-3 w-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Total committed quantity (e.g., 100 rooms, 50 seats)</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={values.committed_quantity || ""}
+                      onChange={(e) => set('committed_quantity', e.target.value ? parseInt(e.target.value) : undefined)}
+                      placeholder="100"
+                    />
+                    {hasAttemptedSubmit && errors.committed_quantity && (
+                      <p className="text-sm text-destructive">{errors.committed_quantity}</p>
+                    )}
+                  </div>
+
+                  {/* Minimum Pickup Percent */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Percent className="h-4 w-4" />
+                      Minimum Pickup %
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <AlertCircle className="h-3 w-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Minimum percentage to avoid penalties (e.g., 80%)</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={values.minimum_pickup_percent || ""}
+                      onChange={(e) => set('minimum_pickup_percent', e.target.value ? parseFloat(e.target.value) : undefined)}
+                      placeholder="80"
+                    />
+                    {hasAttemptedSubmit && errors.minimum_pickup_percent && (
+                      <p className="text-sm text-destructive">{errors.minimum_pickup_percent}</p>
+                    )}
+                  </div>
+
+                  {/* Penalty Calculation */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      Penalty Calculation *
+                    </Label>
+                    <Select
+                      value={values.penalty_calculation || ""}
+                      onValueChange={(value) => set('penalty_calculation', value === "" ? undefined : value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select penalty calculation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pay_for_unused">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-red-600" />
+                            Pay for Unused
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="sliding_scale">
+                          <div className="flex items-center gap-2">
+                            <TrendingDown className="h-4 w-4 text-orange-600" />
+                            Sliding Scale
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="fixed_fee">
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-blue-600" />
+                            Fixed Fee
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {hasAttemptedSubmit && errors.penalty_calculation && (
+                      <p className="text-sm text-destructive">{errors.penalty_calculation}</p>
+                    )}
+                  </div>
+
+                  {/* Grace Allowance */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Grace Allowance
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <AlertCircle className="h-3 w-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Units allowed to miss before penalties apply</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={values.grace_allowance || ""}
+                      onChange={(e) => set('grace_allowance', e.target.value ? parseInt(e.target.value) : undefined)}
+                      placeholder="5"
+                    />
+                  </div>
+
+                  {/* Attrition Period Type */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Period Type *
+                    </Label>
+                    <Select
+                      value={values.attrition_period_type || ""}
+                      onValueChange={(value) => set('attrition_period_type', value === "" ? undefined : value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select period type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monthly">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-blue-600" />
+                            Monthly
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="seasonal">
+                          <div className="flex items-center gap-2">
+                            <TrendingDown className="h-4 w-4 text-green-600" />
+                            Seasonal
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="event">
+                          <div className="flex items-center gap-2">
+                            <Target className="h-4 w-4 text-purple-600" />
+                            Event
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {hasAttemptedSubmit && errors.attrition_period_type && (
+                      <p className="text-sm text-destructive">{errors.attrition_period_type}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

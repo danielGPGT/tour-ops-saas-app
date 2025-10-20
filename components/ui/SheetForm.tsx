@@ -50,7 +50,7 @@ export function SheetForm<V extends Record<string, any>>({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>{trigger}</SheetTrigger>
-      <SheetContent side={side} className="!max-w-[700px] overflow-y-auto">
+      <SheetContent side={side} className="!max-w-[900px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{typeof title === 'string' ? title : title}</SheetTitle>
           {description ? (

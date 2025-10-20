@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CheckCircle2, Clock, AlertCircle, FileText, Building2 } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, FileText, Building2, Calendar, DollarSign, Percent } from "lucide-react";
 import { SheetForm } from "@/components/ui/SheetForm";
 import { createContract, updateContract, getContractById } from "@/app/contracts/actions";
 import { toast } from "sonner";
@@ -23,6 +24,9 @@ type ContractFormData = {
   supplier_id: bigint;
   reference: string;
   status: string;
+  contract_type?: string;
+  signed_date?: Date;
+  notes?: string;
 };
 
 type Props = {
@@ -47,7 +51,10 @@ export function ContractSheet({ trigger, contractId, suppliers, open, onOpenChan
   const initialFormData: ContractFormData = {
     supplier_id: suppliers[0]?.id || BigInt(0),
     reference: "",
-    status: "active"
+    status: "active",
+    contract_type: undefined,
+    signed_date: undefined,
+    notes: ""
   };
 
   // Load contract data when editing - we'll handle this in the SheetForm initial prop
@@ -62,7 +69,10 @@ export function ContractSheet({ trigger, contractId, suppliers, open, onOpenChan
             setContractData({
               supplier_id: contract.supplier_id,
               reference: contract.reference,
-              status: contract.status
+              status: contract.status,
+              contract_type: contract.contract_type,
+              signed_date: contract.signed_date ? new Date(contract.signed_date) : undefined,
+              notes: contract.notes
             });
           }
         } catch (error) {
@@ -115,7 +125,10 @@ export function ContractSheet({ trigger, contractId, suppliers, open, onOpenChan
           const payload = {
             supplier_id: values.supplier_id,
             reference: values.reference.trim(),
-            status: values.status
+            status: values.status,
+            contract_type: values.contract_type,
+            signed_date: values.signed_date,
+            notes: values.notes
           };
 
           if (isEditing && contractId) {
@@ -280,6 +293,94 @@ export function ContractSheet({ trigger, contractId, suppliers, open, onOpenChan
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Contract Type */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Percent className="h-4 w-4" />
+              Contract Type
+              <Tooltip>
+                <TooltipTrigger>
+                  <AlertCircle className="h-3 w-3 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Type of contract affects pricing calculation</p>
+                </TooltipContent>
+              </Tooltip>
+            </Label>
+            <Select
+              value={values.contract_type || ""}
+              onValueChange={(value) => set('contract_type', value === "" ? undefined : value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select contract type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="net_rate">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-green-600" />
+                    Net Rate
+                  </div>
+                </SelectItem>
+                <SelectItem value="commissionable">
+                  <div className="flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-blue-600" />
+                    Commissionable
+                  </div>
+                </SelectItem>
+                <SelectItem value="allocation">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-purple-600" />
+                    Allocation
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Signed Date */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Signed Date
+              <Tooltip>
+                <TooltipTrigger>
+                  <AlertCircle className="h-3 w-3 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Date when contract was actually executed</p>
+                </TooltipContent>
+              </Tooltip>
+            </Label>
+            <Input
+              type="date"
+              value={values.signed_date ? values.signed_date.toISOString().split('T')[0] : ""}
+              onChange={(e) => set('signed_date', e.target.value ? new Date(e.target.value) : undefined)}
+              placeholder="Select signed date"
+            />
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Notes
+              <Tooltip>
+                <TooltipTrigger>
+                  <AlertCircle className="h-3 w-3 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Additional notes and terms for this contract</p>
+                </TooltipContent>
+              </Tooltip>
+            </Label>
+            <Textarea
+              value={values.notes || ""}
+              onChange={(e) => set('notes', e.target.value)}
+              placeholder="Enter contract notes and terms..."
+              rows={3}
+            />
           </div>
 
           {/* Supplier Info */}

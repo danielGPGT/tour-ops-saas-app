@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { ContractsPageClient } from "@/components/contracts/ContractsPageClient";
+import { ContractsPageClientNew as ContractsPageClient } from "@/components/contracts/ContractsPageClientNew";
 import { getCurrentOrgId } from "@/lib/hooks/use-current-org";
 
 export default async function ContractsPage({ 
