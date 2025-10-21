@@ -30,6 +30,7 @@ export interface EntityPageLayoutProps<T> {
     title: string;
     description: string;
   };
+  onRowClick?: (item: T) => void;
   
   // Bulk actions
   bulkActions: any[];
@@ -83,6 +84,7 @@ export function EntityPageLayout<T>({
   onSelectionChange,
   getId,
   emptyState,
+  onRowClick,
   bulkActions,
   getItemName,
   getItemId,
@@ -189,6 +191,7 @@ export function EntityPageLayout<T>({
           onSelectionChange={onSelectionChange}
           getId={getId}
           emptyState={emptyState}
+          onRowClick={onRowClick}
         />
 
         {/* Custom Content (like modals) */}

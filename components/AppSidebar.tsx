@@ -68,15 +68,7 @@ const data = {
           title: "Products",
           url: "/products-variants",
         },
-        {
-          title: "Rate Plans",
-          url: "/rate-plans",
-        },
-        // Pools deprecated in MVP cleanup
-        {
-          title: "Availability",
-          url: "/availability",
-        },
+        // Rate Plans and Availability now integrated into Product Variant details
       ],
     },
     {

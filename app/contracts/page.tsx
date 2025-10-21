@@ -37,20 +37,7 @@ export default async function ContractsPage({
       .from('contracts')
       .select(`
         *,
-        suppliers(*),
-        contract_versions(
-          *,
-          rate_plans(
-            id,
-            inventory_model,
-            currency,
-            markets,
-            channels,
-            preferred,
-            valid_from,
-            valid_to
-          )
-        )
+        suppliers(*)
       `, { count: 'exact' })
       .eq('org_id', orgId);
 
@@ -72,6 +59,33 @@ export default async function ContractsPage({
 
     if (contractsError) throw contractsError;
     contracts = contractsData || [];
+
+    // Fetch deadlines for each contract
+    if (contracts.length > 0) {
+      const contractIds = contracts.map(c => c.id);
+      const { data: deadlinesData, error: deadlinesError } = await supabase
+        .from('contract_deadlines')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('ref_type', 'contract')
+        .in('ref_id', contractIds);
+
+      if (!deadlinesError && deadlinesData) {
+        // Group deadlines by contract ID
+        const deadlinesByContract = deadlinesData.reduce((acc, deadline) => {
+          const contractId = deadline.ref_id;
+          if (!acc[contractId]) acc[contractId] = [];
+          acc[contractId].push(deadline);
+          return acc;
+        }, {} as Record<number, any[]>);
+
+        // Add deadlines to each contract
+        contracts = contracts.map(contract => ({
+          ...contract,
+          contract_deadlines: deadlinesByContract[contract.id] || []
+        }));
+      }
+    }
 
     // Get basic stats
     const { count: totalContracts } = await supabase

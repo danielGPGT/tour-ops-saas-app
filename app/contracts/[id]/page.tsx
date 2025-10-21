@@ -23,20 +23,7 @@ export default async function ContractDetailRoute({
       .from('contracts')
       .select(`
         *,
-        suppliers(*),
-        contract_versions(
-          *,
-          rate_plans(
-            id,
-            inventory_model,
-            currency,
-            markets,
-            channels,
-            preferred,
-            valid_from,
-            valid_to
-          )
-        )
+        suppliers(*)
       `)
       .eq('id', contractId)
       .eq('org_id', orgId)

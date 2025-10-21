@@ -27,6 +27,7 @@ export interface DataTableProps<T> {
     description: string;
   };
   className?: string;
+  onRowClick?: (item: T) => void;
 }
 
 export function DataTable<T>({ 
@@ -36,7 +37,8 @@ export function DataTable<T>({
   onSelectionChange, 
   getId,
   emptyState,
-  className = ""
+  className = "",
+  onRowClick
 }: DataTableProps<T>) {
   const selectedIds = new Set(selectedItems.map(item => getId(item).toString()));
   const allSelected = data.length > 0 && data.every(item => selectedIds.has(getId(item).toString()));
@@ -160,11 +162,16 @@ export function DataTable<T>({
         </TableHeader>
         <TableBody>
           {data.map((item) => (
-            <TableRow key={getId(item).toString()} className="hover:bg-primary/5">
+            <TableRow 
+              key={getId(item).toString()} 
+              className="hover:bg-primary/5 cursor-pointer"
+              onClick={() => onRowClick?.(item)}
+            >
               <TableCell>
                 <Checkbox
                   checked={selectedIds.has(getId(item).toString())}
                   onCheckedChange={(checked) => handleSelectItem(item, Boolean(checked))}
+                  onClick={(e) => e.stopPropagation()}
                 />
               </TableCell>
               {columns.map((column, index) => {

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { createContract } from '@/app/contracts/actions';
-import { createContractVersion } from '@/app/contracts/versions/actions';
+// Removed contract version actions - no longer needed
 import { createClient } from '@/utils/supabase/client';
 import { Upload, FileText, X } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
@@ -174,7 +174,7 @@ export function ContractSheetQuickForm({
   const handleConfirm = async () => {
     if (!pendingValues) return;
     try {
-      // Create contract
+      // Create contract with all terms included
       const contract = await createContract({
         supplier_id: pendingValues.supplier_id,
         reference: pendingValues.reference.trim(),
@@ -184,22 +184,18 @@ export function ContractSheetQuickForm({
         signed_date: pendingValues.signed_date ? new Date(pendingValues.signed_date) : undefined,
         terms_and_conditions: pendingValues.terms_and_conditions,
         special_terms: pendingValues.special_terms,
-        notes: pendingValues.notes ?? ''
+        notes: pendingValues.notes ?? '',
+        // Contract terms fields (moved from contract_versions)
+        commission_rate: pendingValues.commission_rate ?? undefined,
+        currency: pendingValues.currency,
+        booking_cutoff_days: pendingValues.booking_cutoff_days,
+        cancellation_policies: [],
+        payment_policies: [],
+        valid_from: new Date(pendingValues.valid_from),
+        valid_to: new Date(pendingValues.valid_to),
       }, { redirect: false });
 
       if (!contract?.id) throw new Error('Failed to create contract');
-
-      // Create initial version
-      await createContractVersion({
-        contract_id: contract.id as unknown as bigint,
-        valid_from: new Date(pendingValues.valid_from),
-        valid_to: new Date(pendingValues.valid_to),
-        currency: pendingValues.currency,
-        commission_rate: pendingValues.commission_rate ?? undefined,
-        booking_cutoff_days: pendingValues.booking_cutoff_days,
-        cancellation_policies: [],
-        payment_policies: []
-      }, { redirect: false });
 
       toast.success('Contract created');
       setShowConfirm(false);

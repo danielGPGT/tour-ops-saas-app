@@ -44,7 +44,6 @@ CREATE TABLE public.allocation_buckets (
   unit_cost numeric DEFAULT 0,
   currency text DEFAULT 'USD'::text,
   committed_cost boolean DEFAULT false,
-  contract_version_id bigint,
   contract_id bigint,
   CONSTRAINT allocation_buckets_pkey PRIMARY KEY (id),
   CONSTRAINT allocation_buckets_product_variant_id_fkey FOREIGN KEY (product_variant_id) REFERENCES public.product_variants(id),
@@ -63,6 +62,22 @@ CREATE TABLE public.allocation_holds (
   CONSTRAINT allocation_holds_pkey PRIMARY KEY (id),
   CONSTRAINT allocation_holds_allocation_bucket_id_fkey FOREIGN KEY (allocation_bucket_id) REFERENCES public.allocation_buckets(id),
   CONSTRAINT allocation_holds_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.audit_logs (
+  id bigint NOT NULL DEFAULT nextval('audit_logs_id_seq'::regclass),
+  org_id bigint NOT NULL,
+  user_id text,
+  entity_type text NOT NULL,
+  entity_id bigint NOT NULL,
+  action text NOT NULL,
+  old_values jsonb,
+  new_values jsonb,
+  changed_fields ARRAY,
+  ip_address inet,
+  user_agent text,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT audit_logs_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.booking_item_addons (
   id bigint NOT NULL DEFAULT nextval('booking_item_addons_id_seq'::regclass),
@@ -148,25 +163,6 @@ CREATE TABLE public.contract_deadlines (
   CONSTRAINT contract_deadlines_pkey PRIMARY KEY (id),
   CONSTRAINT contract_deadlines_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
-CREATE TABLE public.contract_versions (
-  id bigint NOT NULL DEFAULT nextval('contract_versions_id_seq'::regclass),
-  org_id bigint NOT NULL,
-  contract_id bigint NOT NULL,
-  valid_from date NOT NULL,
-  valid_to date NOT NULL,
-  supersedes_id bigint,
-  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  commission_rate numeric CHECK (commission_rate IS NULL OR commission_rate >= 0::numeric AND commission_rate <= 100::numeric),
-  currency text DEFAULT 'USD'::text,
-  booking_cutoff_days integer CHECK (booking_cutoff_days IS NULL OR booking_cutoff_days > 0),
-  cancellation_policies jsonb NOT NULL DEFAULT '[]'::jsonb,
-  payment_policies jsonb NOT NULL DEFAULT '[]'::jsonb,
-  CONSTRAINT contract_versions_pkey PRIMARY KEY (id),
-  CONSTRAINT contract_versions_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id),
-  CONSTRAINT contract_versions_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
-  CONSTRAINT contract_versions_supersedes_id_fkey FOREIGN KEY (supersedes_id) REFERENCES public.contract_versions(id)
-);
 CREATE TABLE public.contracts (
   id bigint NOT NULL DEFAULT nextval('contracts_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -181,6 +177,13 @@ CREATE TABLE public.contracts (
   signed_document_url text,
   terms_and_conditions text,
   special_terms text,
+  commission_rate numeric CHECK (commission_rate IS NULL OR commission_rate >= 0::numeric AND commission_rate <= 100::numeric),
+  currency text DEFAULT 'USD'::text,
+  booking_cutoff_days integer CHECK (booking_cutoff_days IS NULL OR booking_cutoff_days > 0),
+  cancellation_policies jsonb NOT NULL DEFAULT '[]'::jsonb,
+  payment_policies jsonb NOT NULL DEFAULT '[]'::jsonb,
+  valid_from date,
+  valid_to date,
   CONSTRAINT contracts_pkey PRIMARY KEY (id),
   CONSTRAINT contracts_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
   CONSTRAINT contracts_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
@@ -435,7 +438,6 @@ CREATE TABLE public.rate_plans (
   org_id bigint NOT NULL,
   product_variant_id bigint NOT NULL,
   supplier_id bigint NOT NULL,
-  contract_version_id bigint NOT NULL,
   inventory_model text NOT NULL,
   currency text NOT NULL,
   markets ARRAY,
@@ -447,11 +449,12 @@ CREATE TABLE public.rate_plans (
   created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
   priority integer DEFAULT 100,
+  contract_id bigint,
   CONSTRAINT rate_plans_pkey PRIMARY KEY (id),
   CONSTRAINT rate_plans_product_variant_id_fkey FOREIGN KEY (product_variant_id) REFERENCES public.product_variants(id),
   CONSTRAINT rate_plans_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
-  CONSTRAINT rate_plans_contract_version_id_fkey FOREIGN KEY (contract_version_id) REFERENCES public.contract_versions(id),
-  CONSTRAINT rate_plans_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
+  CONSTRAINT rate_plans_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
+  CONSTRAINT rate_plans_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id)
 );
 CREATE TABLE public.rate_seasons (
   id bigint NOT NULL DEFAULT nextval('rate_seasons_id_seq'::regclass),
