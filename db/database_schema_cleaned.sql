@@ -1,5 +1,11 @@
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
+-- CLEANED DATABASE SCHEMA - After removing redundant rate tables
+-- This schema reflects the new JSONB-based pricing structure
+-- 
+-- CHANGES MADE:
+-- - Removed 5 redundant rate tables (rate_occupancies, rate_seasons, rate_taxes_fees, rate_age_bands, rate_adjustments)
+-- - Cleaned up rate_plans table (removed priority, rate_type, rate_source columns)
+-- - Added JSONB pricing column and block allocation support
+-- - Optimized indexes for new structure
 
 CREATE TABLE public.agent_commissions (
   id bigint NOT NULL DEFAULT nextval('agent_commissions_id_seq'::regclass),
@@ -15,6 +21,7 @@ CREATE TABLE public.agent_commissions (
   CONSTRAINT agent_commissions_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
   CONSTRAINT agent_commissions_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.agents (
   id bigint NOT NULL DEFAULT nextval('agents_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -25,6 +32,8 @@ CREATE TABLE public.agents (
   CONSTRAINT agents_pkey PRIMARY KEY (id),
   CONSTRAINT agents_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
+-- UPDATED: allocation_buckets with block allocation support
 CREATE TABLE public.allocation_buckets (
   id bigint NOT NULL DEFAULT nextval('allocation_buckets_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -45,7 +54,8 @@ CREATE TABLE public.allocation_buckets (
   currency text DEFAULT 'USD'::text,
   committed_cost boolean DEFAULT false,
   contract_id bigint,
-  block_type text DEFAULT 'block'::text,
+  -- NEW: Block allocation fields
+  block_type text DEFAULT 'block'::text CHECK (block_type IN ('block', 'extra_before', 'extra_after', 'daily')),
   block_start_date date,
   block_end_date date,
   min_stay integer DEFAULT 1,
@@ -56,6 +66,7 @@ CREATE TABLE public.allocation_buckets (
   CONSTRAINT allocation_buckets_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT allocation_buckets_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id)
 );
+
 CREATE TABLE public.allocation_holds (
   id bigint NOT NULL DEFAULT nextval('allocation_holds_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -69,6 +80,7 @@ CREATE TABLE public.allocation_holds (
   CONSTRAINT allocation_holds_allocation_bucket_id_fkey FOREIGN KEY (allocation_bucket_id) REFERENCES public.allocation_buckets(id),
   CONSTRAINT allocation_holds_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.audit_logs (
   id bigint NOT NULL DEFAULT nextval('audit_logs_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -85,6 +97,7 @@ CREATE TABLE public.audit_logs (
   CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
   CONSTRAINT audit_logs_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.booking_item_addons (
   id bigint NOT NULL DEFAULT nextval('booking_item_addons_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -99,6 +112,7 @@ CREATE TABLE public.booking_item_addons (
   CONSTRAINT booking_item_addons_addon_id_fkey FOREIGN KEY (addon_id) REFERENCES public.product_addons(id),
   CONSTRAINT booking_item_addons_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.booking_items (
   id bigint NOT NULL DEFAULT nextval('booking_items_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -124,6 +138,7 @@ CREATE TABLE public.booking_items (
   CONSTRAINT booking_items_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
   CONSTRAINT booking_items_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.bookings (
   id bigint NOT NULL DEFAULT nextval('bookings_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -139,6 +154,7 @@ CREATE TABLE public.bookings (
   CONSTRAINT bookings_pkey PRIMARY KEY (id),
   CONSTRAINT bookings_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.commission_payments (
   id bigint NOT NULL DEFAULT nextval('commission_payments_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -152,6 +168,7 @@ CREATE TABLE public.commission_payments (
   CONSTRAINT commission_payments_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.agents(id),
   CONSTRAINT commission_payments_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.contract_deadlines (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   org_id bigint NOT NULL,
@@ -169,6 +186,7 @@ CREATE TABLE public.contract_deadlines (
   CONSTRAINT contract_deadlines_pkey PRIMARY KEY (id),
   CONSTRAINT contract_deadlines_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.contracts (
   id bigint NOT NULL DEFAULT nextval('contracts_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -194,6 +212,7 @@ CREATE TABLE public.contracts (
   CONSTRAINT contracts_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
   CONSTRAINT contracts_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.fulfillment_tasks (
   id bigint NOT NULL DEFAULT nextval('fulfillment_tasks_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -208,6 +227,7 @@ CREATE TABLE public.fulfillment_tasks (
   CONSTRAINT fulfillment_tasks_booking_item_id_fkey FOREIGN KEY (booking_item_id) REFERENCES public.booking_items(id),
   CONSTRAINT fulfillment_tasks_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.inventory_pools (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   org_id bigint NOT NULL,
@@ -221,6 +241,7 @@ CREATE TABLE public.inventory_pools (
   CONSTRAINT inventory_pools_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT inventory_pools_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id)
 );
+
 CREATE TABLE public.org_settings (
   org_id bigint NOT NULL,
   settings jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -229,6 +250,7 @@ CREATE TABLE public.org_settings (
   CONSTRAINT org_settings_pkey PRIMARY KEY (org_id),
   CONSTRAINT org_settings_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.organizations (
   id bigint NOT NULL DEFAULT nextval('organizations_id_seq'::regclass),
   name text NOT NULL,
@@ -237,6 +259,7 @@ CREATE TABLE public.organizations (
   updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT organizations_pkey PRIMARY KEY (id)
 );
+
 CREATE TABLE public.package_components (
   id bigint NOT NULL DEFAULT nextval('package_components_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -252,6 +275,7 @@ CREATE TABLE public.package_components (
   CONSTRAINT package_components_product_variant_id_fkey FOREIGN KEY (product_variant_id) REFERENCES public.product_variants(id),
   CONSTRAINT package_components_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.packages (
   id bigint NOT NULL DEFAULT nextval('packages_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -264,6 +288,7 @@ CREATE TABLE public.packages (
   CONSTRAINT packages_pkey PRIMARY KEY (id),
   CONSTRAINT packages_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.passengers (
   id bigint NOT NULL DEFAULT nextval('passengers_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -284,6 +309,7 @@ CREATE TABLE public.passengers (
   CONSTRAINT passengers_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
   CONSTRAINT passengers_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.payment_schedules (
   id bigint NOT NULL DEFAULT nextval('payment_schedules_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -298,6 +324,7 @@ CREATE TABLE public.payment_schedules (
   CONSTRAINT payment_schedules_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
   CONSTRAINT payment_schedules_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.payments (
   id bigint NOT NULL DEFAULT nextval('payments_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -313,6 +340,7 @@ CREATE TABLE public.payments (
   CONSTRAINT payments_payment_schedule_id_fkey FOREIGN KEY (payment_schedule_id) REFERENCES public.payment_schedules(id),
   CONSTRAINT payments_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.product_addons (
   id bigint NOT NULL DEFAULT nextval('product_addons_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -327,6 +355,7 @@ CREATE TABLE public.product_addons (
   CONSTRAINT product_addons_product_variant_id_fkey FOREIGN KEY (product_variant_id) REFERENCES public.product_variants(id),
   CONSTRAINT product_addons_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.product_subtypes (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   org_id bigint NOT NULL,
@@ -341,6 +370,7 @@ CREATE TABLE public.product_subtypes (
   CONSTRAINT product_subtypes_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT product_subtypes_product_type_id_fkey FOREIGN KEY (product_type_id) REFERENCES public.product_types(id)
 );
+
 CREATE TABLE public.product_templates (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   name text NOT NULL UNIQUE,
@@ -351,6 +381,7 @@ CREATE TABLE public.product_templates (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT product_templates_pkey PRIMARY KEY (id)
 );
+
 CREATE TABLE public.product_types (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   org_id bigint NOT NULL,
@@ -364,6 +395,7 @@ CREATE TABLE public.product_types (
   CONSTRAINT product_types_pkey PRIMARY KEY (id),
   CONSTRAINT product_types_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.product_variants (
   id bigint NOT NULL DEFAULT nextval('product_variants_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -381,6 +413,7 @@ CREATE TABLE public.product_variants (
   CONSTRAINT product_variants_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT product_variants_product_subtype_id_fkey FOREIGN KEY (product_subtype_id) REFERENCES public.product_subtypes(id)
 );
+
 CREATE TABLE public.products (
   id bigint NOT NULL DEFAULT nextval('products_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -394,51 +427,8 @@ CREATE TABLE public.products (
   CONSTRAINT products_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT products_product_type_id_fkey FOREIGN KEY (product_type_id) REFERENCES public.product_types(id)
 );
-CREATE TABLE public.rate_adjustments (
-  id bigint NOT NULL DEFAULT nextval('rate_adjustments_id_seq'::regclass),
-  org_id bigint NOT NULL,
-  rate_plan_id bigint NOT NULL,
-  scope text NOT NULL,
-  condition jsonb NOT NULL DEFAULT '{}'::jsonb,
-  adjustment_type text NOT NULL,
-  value numeric NOT NULL,
-  priority integer NOT NULL DEFAULT 100,
-  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT rate_adjustments_pkey PRIMARY KEY (id),
-  CONSTRAINT rate_adjustments_rate_plan_id_fkey FOREIGN KEY (rate_plan_id) REFERENCES public.rate_plans(id),
-  CONSTRAINT rate_adjustments_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.rate_age_bands (
-  id bigint NOT NULL DEFAULT nextval('rate_age_bands_id_seq'::regclass),
-  org_id bigint NOT NULL,
-  rate_plan_id bigint NOT NULL,
-  label text NOT NULL,
-  min_age integer NOT NULL,
-  max_age integer NOT NULL,
-  price_type text NOT NULL,
-  value numeric NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT rate_age_bands_pkey PRIMARY KEY (id),
-  CONSTRAINT rate_age_bands_rate_plan_id_fkey FOREIGN KEY (rate_plan_id) REFERENCES public.rate_plans(id),
-  CONSTRAINT rate_age_bands_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.rate_occupancies (
-  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  org_id bigint NOT NULL,
-  rate_plan_id bigint NOT NULL,
-  min_occupancy integer NOT NULL,
-  max_occupancy integer NOT NULL,
-  pricing_model text NOT NULL CHECK (pricing_model = ANY (ARRAY['fixed'::text, 'base_plus_pax'::text, 'per_person'::text])),
-  base_amount numeric NOT NULL,
-  per_person_amount numeric CHECK (per_person_amount IS NULL OR per_person_amount >= 0::numeric),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT rate_occupancies_pkey PRIMARY KEY (id),
-  CONSTRAINT rate_occupancies_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
-  CONSTRAINT rate_occupancies_rate_plan_id_fkey FOREIGN KEY (rate_plan_id) REFERENCES public.rate_plans(id)
-);
+
+-- UPDATED: rate_plans with JSONB pricing structure (removed redundant columns)
 CREATE TABLE public.rate_plans (
   id bigint NOT NULL DEFAULT nextval('rate_plans_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -454,52 +444,17 @@ CREATE TABLE public.rate_plans (
   rate_doc jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  priority integer DEFAULT 100,
   contract_id bigint,
-  rate_type text DEFAULT 'supplier_rate'::text,
-  rate_source text,
-  pricing jsonb DEFAULT '{}'::jsonb,
-  block_type text DEFAULT 'block'::text,
+  -- NEW: JSONB pricing structure
+  pricing jsonb NOT NULL DEFAULT '{}'::jsonb,
+  block_type text DEFAULT 'block'::text CHECK (block_type IN ('block', 'extra_before', 'extra_after', 'daily')),
   CONSTRAINT rate_plans_pkey PRIMARY KEY (id),
   CONSTRAINT rate_plans_product_variant_id_fkey FOREIGN KEY (product_variant_id) REFERENCES public.product_variants(id),
   CONSTRAINT rate_plans_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
   CONSTRAINT rate_plans_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT rate_plans_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id)
 );
-CREATE TABLE public.rate_seasons (
-  id bigint NOT NULL DEFAULT nextval('rate_seasons_id_seq'::regclass),
-  org_id bigint NOT NULL,
-  rate_plan_id bigint NOT NULL,
-  season_from date NOT NULL,
-  season_to date NOT NULL,
-  dow_mask integer NOT NULL DEFAULT 127,
-  min_stay integer,
-  max_stay integer,
-  min_pax integer,
-  max_pax integer,
-  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT rate_seasons_pkey PRIMARY KEY (id),
-  CONSTRAINT rate_seasons_rate_plan_id_fkey FOREIGN KEY (rate_plan_id) REFERENCES public.rate_plans(id),
-  CONSTRAINT rate_seasons_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.rate_taxes_fees (
-  id bigint NOT NULL DEFAULT nextval('rate_taxes_fees_id_seq'::regclass),
-  org_id bigint NOT NULL,
-  rate_plan_id bigint NOT NULL,
-  name text NOT NULL,
-  jurisdiction text,
-  inclusive boolean NOT NULL DEFAULT false,
-  calc_base text NOT NULL,
-  amount_type text NOT NULL,
-  value numeric NOT NULL,
-  rounding_rule text,
-  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT rate_taxes_fees_pkey PRIMARY KEY (id),
-  CONSTRAINT rate_taxes_fees_rate_plan_id_fkey FOREIGN KEY (rate_plan_id) REFERENCES public.rate_plans(id),
-  CONSTRAINT rate_taxes_fees_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
+
 CREATE TABLE public.room_assignments (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   org_id bigint NOT NULL,
@@ -518,6 +473,7 @@ CREATE TABLE public.room_assignments (
   CONSTRAINT room_assignments_booking_item_id_fkey FOREIGN KEY (booking_item_id) REFERENCES public.booking_items(id),
   CONSTRAINT room_assignments_adjacent_to_fkey FOREIGN KEY (adjacent_to) REFERENCES public.room_assignments(id)
 );
+
 CREATE TABLE public.room_occupants (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   org_id bigint NOT NULL,
@@ -530,6 +486,7 @@ CREATE TABLE public.room_occupants (
   CONSTRAINT room_occupants_room_assignment_id_fkey FOREIGN KEY (room_assignment_id) REFERENCES public.room_assignments(id),
   CONSTRAINT room_occupants_passenger_id_fkey FOREIGN KEY (passenger_id) REFERENCES public.passengers(id)
 );
+
 CREATE TABLE public.supplier_payments (
   id bigint NOT NULL DEFAULT nextval('supplier_payments_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -544,6 +501,7 @@ CREATE TABLE public.supplier_payments (
   CONSTRAINT supplier_payments_booking_item_id_fkey FOREIGN KEY (booking_item_id) REFERENCES public.booking_items(id),
   CONSTRAINT supplier_payments_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.suppliers (
   id bigint NOT NULL DEFAULT nextval('suppliers_id_seq'::regclass),
   org_id bigint NOT NULL,
@@ -556,6 +514,7 @@ CREATE TABLE public.suppliers (
   CONSTRAINT suppliers_pkey PRIMARY KEY (id),
   CONSTRAINT suppliers_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
 );
+
 CREATE TABLE public.time_slots (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   org_id bigint NOT NULL,
@@ -570,3 +529,101 @@ CREATE TABLE public.time_slots (
   CONSTRAINT time_slots_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT time_slots_product_variant_id_fkey FOREIGN KEY (product_variant_id) REFERENCES public.product_variants(id)
 );
+
+-- ============================================================================
+-- ESSENTIAL INDEXES FOR PERFORMANCE
+-- ============================================================================
+
+-- Rate Plans Indexes
+CREATE INDEX idx_rate_plans_pricing_gin ON public.rate_plans USING GIN (pricing);
+CREATE INDEX idx_rate_plans_block_type ON public.rate_plans (block_type);
+CREATE INDEX idx_rate_plans_variant_supplier_dates ON public.rate_plans (product_variant_id, supplier_id, valid_from, valid_to);
+CREATE INDEX idx_rate_plans_contract ON public.rate_plans (contract_id) WHERE contract_id IS NOT NULL;
+
+-- Allocation Buckets Indexes
+CREATE INDEX idx_allocation_buckets_variant_supplier_date ON public.allocation_buckets (product_variant_id, supplier_id, date);
+CREATE INDEX idx_allocation_buckets_block_type ON public.allocation_buckets (block_type);
+CREATE INDEX idx_allocation_buckets_block_dates ON public.allocation_buckets (block_start_date, block_end_date) WHERE block_start_date IS NOT NULL AND block_end_date IS NOT NULL;
+CREATE INDEX idx_allocation_buckets_stay_requirements ON public.allocation_buckets (min_stay, max_stay) WHERE min_stay IS NOT NULL OR max_stay IS NOT NULL;
+
+-- ============================================================================
+-- HELPER FUNCTIONS FOR JSONB PRICING QUERIES
+-- ============================================================================
+
+-- Function to extract rate for specific occupancy and room type
+CREATE OR REPLACE FUNCTION get_rate_for_occupancy(
+  pricing jsonb,
+  occupancy integer,
+  room_type text DEFAULT 'standard',
+  rate_type text DEFAULT 'block_rate'
+) RETURNS numeric AS $$
+BEGIN
+  RETURN (pricing->'occupancy'->occupancy::text->room_type->>rate_type)::numeric;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Function to extract extra night rate
+CREATE OR REPLACE FUNCTION get_extra_night_rate(
+  pricing jsonb,
+  occupancy integer,
+  room_type text DEFAULT 'standard',
+  night_type text DEFAULT 'extra_after'
+) RETURNS numeric AS $$
+BEGIN
+  RETURN (pricing->'occupancy'->occupancy::text->room_type->>night_type)::numeric;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Function to extract taxes and fees
+CREATE OR REPLACE FUNCTION get_taxes_fees(pricing jsonb) 
+RETURNS jsonb AS $$
+BEGIN
+  RETURN pricing->'taxes_fees';
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN '[]'::jsonb;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- ============================================================================
+-- COMMENTS FOR DOCUMENTATION
+-- ============================================================================
+
+COMMENT ON TABLE public.rate_plans IS 'Rate plans with JSONB pricing structure. Supports block allocations, occupancy-based pricing, taxes/fees, and seasonal rates all in the pricing JSONB column.';
+COMMENT ON COLUMN public.rate_plans.pricing IS 'JSONB structure containing all pricing rules: occupancy rates, extra night rates, taxes/fees, seasonal adjustments, and age bands.';
+COMMENT ON COLUMN public.rate_plans.block_type IS 'Type of allocation: block (main allocation), extra_before (nights before block), extra_after (nights after block), daily (daily allocation).';
+COMMENT ON COLUMN public.rate_plans.rate_doc IS 'Legacy JSONB column - use pricing column instead. Will be deprecated in future migration.';
+
+COMMENT ON TABLE public.allocation_buckets IS 'Inventory allocations with block support. Can represent single-day allocations or multi-day blocks with min/max stay requirements.';
+COMMENT ON COLUMN public.allocation_buckets.block_type IS 'Type of allocation: block (main allocation), extra_before (nights before block), extra_after (nights after block), daily (daily allocation).';
+COMMENT ON COLUMN public.allocation_buckets.block_start_date IS 'Start date for block allocations (NULL for daily allocations).';
+COMMENT ON COLUMN public.allocation_buckets.block_end_date IS 'End date for block allocations (NULL for daily allocations).';
+COMMENT ON COLUMN public.allocation_buckets.min_stay IS 'Minimum stay requirement for block allocations.';
+COMMENT ON COLUMN public.allocation_buckets.max_stay IS 'Maximum stay allowed for block allocations.';
+
+-- ============================================================================
+-- REMOVED TABLES (for reference):
+-- ============================================================================
+-- 
+-- ❌ rate_occupancies - Replaced by JSONB occupancy structure in pricing column
+-- ❌ rate_seasons - Replaced by multiple rate plans with different valid_from/valid_to dates
+-- ❌ rate_taxes_fees - Replaced by JSONB taxes/fees structure in pricing column  
+-- ❌ rate_age_bands - Replaced by JSONB age band structure in pricing column
+-- ❌ rate_adjustments - Replaced by JSONB adjustment rules in pricing column
+--
+-- REMOVED COLUMNS from rate_plans:
+-- ❌ priority - Can be stored in JSONB pricing structure
+-- ❌ rate_type - Inferred from supplier_id presence (NULL = master rate, NOT NULL = supplier rate)
+-- ❌ rate_source - Can be stored in JSONB pricing structure
+--
+-- PERFORMANCE IMPROVEMENTS:
+-- ✅ Reduced from 7 tables to 2 tables for pricing
+-- ✅ Fewer JOINs required for pricing queries
+-- ✅ GIN index on JSONB for fast pricing lookups
+-- ✅ Optimized indexes for common query patterns

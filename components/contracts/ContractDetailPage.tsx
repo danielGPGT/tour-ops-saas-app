@@ -51,6 +51,8 @@ import { ContractSheetQuickForm } from './ContractSheetQuickForm'
 import { ContractDeadlinesTable } from './ContractDeadlinesTable'
 import { AuditLogsTable } from './AuditLogsTable'
 import { ContractLinkedProducts } from './ContractLinkedProducts'
+import { ContractRatesManager } from './ContractRatesManager'
+import { ContractAllocationsManager } from './ContractAllocationsManager'
 import { SummaryCards } from '@/components/common/SummaryCards'
 import { ContractStatusDropdown, ContractTypeDropdown } from '@/components/common/InlineDropdown'
 import { createDeadline, updateDeadline, deleteDeadline, markDeadlineComplete, updateDeadlineStatus } from '@/app/contracts/deadlines/actions'
@@ -110,7 +112,7 @@ export function ContractDetailPage({
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab && ['overview', 'terms', 'products', 'deadlines', 'analytics', 'audit'].includes(tab)) {
+    if (tab && ['overview', 'terms', 'rates', 'allocations', 'products', 'deadlines', 'analytics', 'audit'].includes(tab)) {
       setActiveTab(tab)
     }
   }, [searchParams])
@@ -576,7 +578,7 @@ export function ContractDetailPage({
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-6">
+        <TabsList className="grid grid-cols-8">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Building className="w-4 h-4" />
             Overview
@@ -584,6 +586,14 @@ export function ContractDetailPage({
           <TabsTrigger value="terms" className="flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Terms
+          </TabsTrigger>
+          <TabsTrigger value="rates" className="flex items-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            Rates
+          </TabsTrigger>
+          <TabsTrigger value="allocations" className="flex items-center gap-2">
+            <Package className="w-4 h-4" />
+            Allocations
           </TabsTrigger>
           <TabsTrigger value="deadlines" className="flex items-center gap-2">
             <Calendar className="w-4 h-4" />
@@ -773,6 +783,22 @@ export function ContractDetailPage({
                 </Card>
               )}
           </TabsContent>
+
+        <TabsContent value="rates" className="space-y-6">
+          <ContractRatesManager
+            contractId={contract.id.toString()}
+            supplierId={contract.supplier_id.toString()}
+            orgId={contract.org_id.toString()}
+          />
+        </TabsContent>
+
+        <TabsContent value="allocations" className="space-y-6">
+          <ContractAllocationsManager
+            contractId={contract.id.toString()}
+            supplierId={contract.supplier_id.toString()}
+            orgId={contract.org_id.toString()}
+          />
+        </TabsContent>
 
         {/* Versions tab removed - no longer needed */}
 

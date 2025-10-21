@@ -7,3 +7,4 @@ CREATE INDEX IF NOT EXISTS idx_rate_plans_priority
 ON rate_plans(org_id, product_variant_id, valid_from, valid_to, priority DESC);
 
 
+
