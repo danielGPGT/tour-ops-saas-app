@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { createDatabaseService } from "@/lib/database";
 
 interface AvailabilitySearchParams {
   orgId: number;

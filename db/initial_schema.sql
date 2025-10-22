@@ -1,461 +1,710 @@
--- PostgreSQL initial schema for multi-tenant tour-ops SaaS
--- All domain tables include org_id for tenant isolation
--- Conventions:
--- - Primary keys use bigint identity
--- - created_at/updated_at timestamps default to now(), updated via triggers in app layer
--- - Textual enums are CHECK constraints to avoid hard SQL enums during early iteration
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
--- Organizations
-CREATE TABLE IF NOT EXISTS organizations (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  name              TEXT NOT NULL,
-  settings          JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.allocation_inventory (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  contract_allocation_id uuid NOT NULL,
+  product_option_id uuid NOT NULL,
+  total_quantity integer NOT NULL,
+  flexible_configuration boolean DEFAULT false,
+  alternate_option_ids ARRAY,
+  notes text,
+  CONSTRAINT allocation_inventory_pkey PRIMARY KEY (id),
+  CONSTRAINT allocation_inventory_contract_allocation_id_fkey FOREIGN KEY (contract_allocation_id) REFERENCES public.contract_allocations(id),
+  CONSTRAINT allocation_inventory_product_option_id_fkey FOREIGN KEY (product_option_id) REFERENCES public.product_options(id)
 );
-
--- Suppliers
-CREATE TABLE IF NOT EXISTS suppliers (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name              TEXT NOT NULL,
-  terms             JSONB NOT NULL DEFAULT '{}'::jsonb,
-  channels          TEXT[] NOT NULL DEFAULT '{}',
-  status            TEXT NOT NULL DEFAULT 'active',
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.audit_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  entity_type character varying NOT NULL,
+  entity_id uuid NOT NULL,
+  action character varying NOT NULL,
+  old_values jsonb,
+  new_values jsonb,
+  changed_by uuid,
+  ip_address inet,
+  user_agent text,
+  changed_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+  CONSTRAINT audit_log_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT audit_log_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_suppliers_org ON suppliers(org_id);
-
--- Products
-CREATE TABLE IF NOT EXISTS products (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name              TEXT NOT NULL,
-  type              TEXT NOT NULL,
-  status            TEXT NOT NULL DEFAULT 'active',
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (type IN ('accommodation','activity','event','transfer','package'))
+CREATE TABLE public.availability (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  allocation_inventory_id uuid NOT NULL,
+  availability_date date NOT NULL,
+  total_available integer NOT NULL CHECK (total_available >= 0),
+  booked integer DEFAULT 0,
+  provisional integer DEFAULT 0,
+  held integer DEFAULT 0,
+  available integer DEFAULT (((total_available - booked) - provisional) - held) CHECK (available >= 0 OR available = '-999'::integer),
+  is_closed boolean DEFAULT false,
+  close_reason character varying,
+  last_modified timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT availability_pkey PRIMARY KEY (id),
+  CONSTRAINT availability_allocation_inventory_id_fkey FOREIGN KEY (allocation_inventory_id) REFERENCES public.allocation_inventory(id)
 );
-CREATE INDEX IF NOT EXISTS idx_products_org ON products(org_id);
-
--- Product Variants
-CREATE TABLE IF NOT EXISTS product_variants (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  product_id        BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  name              TEXT NOT NULL,
-  subtype           TEXT NOT NULL,
-  attributes        JSONB NOT NULL DEFAULT '{}'::jsonb,
-  status            TEXT NOT NULL DEFAULT 'active',
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (subtype IN ('room_category','seat_tier','time_slot','none')),
-  UNIQUE (org_id, product_id, name)
+CREATE TABLE public.availability_holds (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  allocation_inventory_id uuid NOT NULL,
+  availability_date date NOT NULL,
+  quantity integer NOT NULL,
+  booking_item_id uuid,
+  session_id character varying,
+  expires_at timestamp without time zone NOT NULL,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT availability_holds_pkey PRIMARY KEY (id),
+  CONSTRAINT availability_holds_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT availability_holds_allocation_inventory_id_fkey FOREIGN KEY (allocation_inventory_id) REFERENCES public.allocation_inventory(id),
+  CONSTRAINT availability_holds_booking_item_id_fkey FOREIGN KEY (booking_item_id) REFERENCES public.booking_items(id)
 );
-CREATE INDEX IF NOT EXISTS idx_product_variants_org_prod ON product_variants(org_id, product_id);
-
--- Contracts
-CREATE TABLE IF NOT EXISTS contracts (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  supplier_id       BIGINT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
-  reference         TEXT NOT NULL,
-  status            TEXT NOT NULL DEFAULT 'active',
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(org_id, supplier_id, reference)
+CREATE TABLE public.booking_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  booking_id uuid NOT NULL,
+  organization_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  product_option_id uuid,
+  service_date_from date NOT NULL,
+  service_date_to date,
+  nights integer DEFAULT (service_date_to - service_date_from),
+  quantity integer NOT NULL DEFAULT 1,
+  adults integer DEFAULT 0,
+  children integer DEFAULT 0,
+  infants integer DEFAULT 0,
+  bed_configuration character varying,
+  board_basis character varying,
+  contract_allocation_id uuid,
+  allocation_inventory_id uuid,
+  supplier_id uuid,
+  contract_id uuid,
+  supplier_reference character varying,
+  supplier_status character varying,
+  unit_cost numeric,
+  unit_price numeric NOT NULL,
+  total_cost numeric,
+  total_price numeric NOT NULL,
+  currency character varying DEFAULT 'USD'::character varying,
+  taxes_fees jsonb,
+  item_status USER-DEFINED DEFAULT 'provisional'::booking_status,
+  is_sourced boolean DEFAULT false,
+  is_part_of_package boolean DEFAULT false,
+  passenger_names ARRAY,
+  special_requests text,
+  item_notes text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  created_by uuid,
+  cost_currency character varying,
+  price_currency character varying,
+  base_currency character varying,
+  exchange_rate_cost_to_base numeric,
+  exchange_rate_price_to_base numeric,
+  exchange_rate_type character varying DEFAULT 'market'::character varying,
+  exchange_rate_spread numeric,
+  unit_cost_base numeric,
+  unit_price_base numeric,
+  total_cost_base numeric,
+  total_price_base numeric,
+  payment_method character varying,
+  payment_processing_fee numeric DEFAULT 0,
+  payment_fx_markup numeric DEFAULT 0,
+  total_cost_with_fees numeric,
+  total_price_after_fees numeric,
+  margin_base numeric,
+  margin_percentage numeric,
+  CONSTRAINT booking_items_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_items_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT booking_items_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT booking_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT booking_items_product_option_id_fkey FOREIGN KEY (product_option_id) REFERENCES public.product_options(id),
+  CONSTRAINT booking_items_contract_allocation_id_fkey FOREIGN KEY (contract_allocation_id) REFERENCES public.contract_allocations(id),
+  CONSTRAINT booking_items_allocation_inventory_id_fkey FOREIGN KEY (allocation_inventory_id) REFERENCES public.allocation_inventory(id),
+  CONSTRAINT booking_items_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
+  CONSTRAINT booking_items_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id),
+  CONSTRAINT booking_items_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_contracts_org_supplier ON contracts(org_id, supplier_id);
-
--- Contract Versions (immutable effective dating)
-CREATE TABLE IF NOT EXISTS contract_versions (
-  id                    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id                BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  contract_id           BIGINT NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
-  valid_from            DATE NOT NULL,
-  valid_to              DATE NOT NULL,
-  cancellation_policy   JSONB NOT NULL DEFAULT '{}'::jsonb,
-  payment_policy        JSONB NOT NULL DEFAULT '{}'::jsonb,
-  terms                 JSONB NOT NULL DEFAULT '{}'::jsonb,
-  supersedes_id         BIGINT NULL REFERENCES contract_versions(id) ON DELETE SET NULL,
-  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (valid_from < valid_to)
+CREATE TABLE public.booking_passengers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  booking_id uuid NOT NULL,
+  booking_item_id uuid,
+  passenger_type character varying NOT NULL,
+  title character varying,
+  first_name character varying NOT NULL,
+  last_name character varying NOT NULL,
+  date_of_birth date,
+  age integer,
+  gender character varying,
+  passport_number character varying,
+  passport_expiry date,
+  nationality character varying,
+  email character varying,
+  phone character varying,
+  dietary_requirements text,
+  special_requirements text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT booking_passengers_pkey PRIMARY KEY (id),
+  CONSTRAINT booking_passengers_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT booking_passengers_booking_item_id_fkey FOREIGN KEY (booking_item_id) REFERENCES public.booking_items(id)
 );
-CREATE INDEX IF NOT EXISTS idx_contract_versions_org_contract ON contract_versions(org_id, contract_id);
-CREATE INDEX IF NOT EXISTS idx_contract_versions_effective ON contract_versions(org_id, valid_from, valid_to);
-
--- Rate Plans (aka Rate Sheets) - hybrid model with canonical JSON doc + normalized tables
-CREATE TABLE IF NOT EXISTS rate_plans (
-  id                    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id                BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  product_variant_id    BIGINT NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
-  supplier_id           BIGINT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
-  contract_version_id   BIGINT NOT NULL REFERENCES contract_versions(id) ON DELETE RESTRICT,
-  inventory_model       TEXT NOT NULL,
-  currency              TEXT NOT NULL,
-  markets               TEXT[] NOT NULL DEFAULT '{}',
-  channels              TEXT[] NOT NULL DEFAULT '{}',
-  preferred             BOOLEAN NOT NULL DEFAULT FALSE,
-  valid_from            DATE NOT NULL,
-  valid_to              DATE NOT NULL,
-  rate_doc              JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (valid_from < valid_to),
-  CHECK (inventory_model IN ('committed','on_request','freesale'))
+CREATE TABLE public.bookings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  booking_reference character varying NOT NULL,
+  booking_status USER-DEFINED DEFAULT 'provisional'::booking_status,
+  customer_id uuid,
+  customer_type character varying,
+  package_id uuid,
+  is_custom_package boolean DEFAULT false,
+  booking_date timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  confirmed_at timestamp without time zone,
+  cancelled_at timestamp without time zone,
+  travel_date_from date,
+  travel_date_to date,
+  total_cost numeric,
+  total_price numeric,
+  margin numeric DEFAULT (total_price - total_cost),
+  currency character varying DEFAULT 'USD'::character varying,
+  lead_passenger_name character varying,
+  lead_passenger_email character varying,
+  lead_passenger_phone character varying,
+  lead_passenger_details jsonb,
+  total_adults integer DEFAULT 0,
+  total_children integer DEFAULT 0,
+  total_infants integer DEFAULT 0,
+  customer_notes text,
+  internal_notes text,
+  special_requests text,
+  source character varying,
+  agent_reference character varying,
+  payment_status character varying DEFAULT 'pending'::character varying,
+  created_by uuid,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT bookings_pkey PRIMARY KEY (id),
+  CONSTRAINT bookings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT bookings_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id),
+  CONSTRAINT bookings_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.packages(id),
+  CONSTRAINT bookings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_rate_plans_variant_window ON rate_plans(org_id, product_variant_id, valid_from, valid_to);
-CREATE INDEX IF NOT EXISTS idx_rate_plans_contract ON rate_plans(org_id, contract_version_id);
-
--- Rate Seasons
-CREATE TABLE IF NOT EXISTS rate_seasons (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  rate_plan_id      BIGINT NOT NULL REFERENCES rate_plans(id) ON DELETE CASCADE,
-  season_from       DATE NOT NULL,
-  season_to         DATE NOT NULL,
-  dow_mask          SMALLINT NOT NULL DEFAULT 127, -- 7-bit mask (Mon-Sun)
-  min_stay          SMALLINT NULL,
-  max_stay          SMALLINT NULL,
-  min_pax           SMALLINT NULL,
-  max_pax           SMALLINT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (season_from < season_to)
+CREATE TABLE public.contract_allocations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  contract_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  allocation_name character varying,
+  allocation_type USER-DEFINED NOT NULL,
+  valid_from date NOT NULL,
+  valid_to date NOT NULL,
+  min_nights integer,
+  max_nights integer,
+  min_advance_booking integer,
+  max_advance_booking integer,
+  release_days integer,
+  dow_arrival ARRAY,
+  dow_checkout ARRAY,
+  allow_overbooking boolean DEFAULT false,
+  overbooking_limit integer,
+  terms jsonb,
+  is_active boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT contract_allocations_pkey PRIMARY KEY (id),
+  CONSTRAINT contract_allocations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT contract_allocations_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id),
+  CONSTRAINT contract_allocations_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
-CREATE INDEX IF NOT EXISTS idx_rate_seasons_window ON rate_seasons(org_id, rate_plan_id, season_from, season_to);
-
--- Rate Occupancies
-CREATE TABLE IF NOT EXISTS rate_occupancies (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  rate_plan_id      BIGINT NOT NULL REFERENCES rate_plans(id) ON DELETE CASCADE,
-  occupancy_type    TEXT NOT NULL,
-  price_type        TEXT NOT NULL,
-  amount            NUMERIC(12,2) NOT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (occupancy_type IN ('single','double','triple','quad')),
-  CHECK (price_type IN ('per_unit','per_person'))
+CREATE TABLE public.contracts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  supplier_id uuid NOT NULL,
+  contract_number character varying NOT NULL,
+  contract_name character varying,
+  valid_from date NOT NULL,
+  valid_to date NOT NULL,
+  currency character varying DEFAULT 'USD'::character varying,
+  payment_terms jsonb,
+  cancellation_policy jsonb,
+  rooming_list_deadline integer,
+  cutoff_date date,
+  commission_rate numeric,
+  commission_type character varying,
+  contract_files jsonb,
+  terms text,
+  status character varying DEFAULT 'active'::character varying,
+  created_by uuid,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT contracts_pkey PRIMARY KEY (id),
+  CONSTRAINT contracts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT contracts_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
+  CONSTRAINT contracts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_rate_occupancies_plan ON rate_occupancies(org_id, rate_plan_id, occupancy_type);
-
--- Rate Age Bands
-CREATE TABLE IF NOT EXISTS rate_age_bands (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  rate_plan_id      BIGINT NOT NULL REFERENCES rate_plans(id) ON DELETE CASCADE,
-  label             TEXT NOT NULL,
-  min_age           SMALLINT NOT NULL,
-  max_age           SMALLINT NOT NULL,
-  price_type        TEXT NOT NULL,
-  value             NUMERIC(12,4) NOT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (price_type IN ('fixed','factor')),
-  CHECK (min_age >= 0 AND max_age >= min_age)
+CREATE TABLE public.customers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  customer_type character varying DEFAULT 'b2c'::character varying,
+  first_name character varying,
+  last_name character varying,
+  company_name character varying,
+  email character varying,
+  phone character varying,
+  address jsonb,
+  preferences jsonb,
+  marketing_consent boolean DEFAULT false,
+  source character varying,
+  loyalty_tier character varying,
+  total_bookings integer DEFAULT 0,
+  total_spent numeric DEFAULT 0,
+  is_active boolean DEFAULT true,
+  tags ARRAY,
+  notes text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT customers_pkey PRIMARY KEY (id),
+  CONSTRAINT customers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
-CREATE INDEX IF NOT EXISTS idx_rate_age_bands_plan ON rate_age_bands(org_id, rate_plan_id, label);
-
--- Rate Adjustments (DOW, group, promo, channel)
-CREATE TABLE IF NOT EXISTS rate_adjustments (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  rate_plan_id      BIGINT NOT NULL REFERENCES rate_plans(id) ON DELETE CASCADE,
-  scope             TEXT NOT NULL,
-  condition         JSONB NOT NULL DEFAULT '{}'::jsonb,
-  adjustment_type   TEXT NOT NULL,
-  value             NUMERIC(12,4) NOT NULL,
-  priority          INT NOT NULL DEFAULT 100,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (scope IN ('season','dow','group','promo','channel')),
-  CHECK (adjustment_type IN ('percent','fixed'))
+CREATE TABLE public.exchange_rates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  from_currency character varying NOT NULL,
+  to_currency character varying NOT NULL,
+  mid_rate numeric NOT NULL CHECK (mid_rate > 0::numeric),
+  buy_rate numeric,
+  sell_rate numeric,
+  spread_percentage numeric CHECK (spread_percentage IS NULL OR spread_percentage >= 0::numeric AND spread_percentage <= 0.10),
+  valid_from timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  valid_to timestamp without time zone,
+  source character varying,
+  rate_type character varying DEFAULT 'market'::character varying,
+  contract_reference character varying,
+  notes text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  created_by uuid,
+  CONSTRAINT exchange_rates_pkey PRIMARY KEY (id),
+  CONSTRAINT exchange_rates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT exchange_rates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_rate_adjustments_plan ON rate_adjustments(org_id, rate_plan_id, scope, priority);
-
--- Taxes & Fees
-CREATE TABLE IF NOT EXISTS rate_taxes_fees (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  rate_plan_id      BIGINT NOT NULL REFERENCES rate_plans(id) ON DELETE CASCADE,
-  name              TEXT NOT NULL,
-  jurisdiction      TEXT NULL,
-  inclusive         BOOLEAN NOT NULL DEFAULT FALSE,
-  calc_base         TEXT NOT NULL,
-  amount_type       TEXT NOT NULL,
-  value             NUMERIC(12,4) NOT NULL,
-  rounding_rule     TEXT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (calc_base IN ('net','gross','per_person','per_booking')),
-  CHECK (amount_type IN ('percent','fixed'))
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  user_id uuid,
+  notification_type character varying NOT NULL,
+  title character varying NOT NULL,
+  message text,
+  related_entity_type character varying,
+  related_entity_id uuid,
+  is_read boolean DEFAULT false,
+  read_at timestamp without time zone,
+  sent_email boolean DEFAULT false,
+  sent_sms boolean DEFAULT false,
+  sent_push boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_rate_taxes_fees_plan ON rate_taxes_fees(org_id, rate_plan_id);
-
--- Allocation Buckets (availability per date, supplier, variant)
-CREATE TABLE IF NOT EXISTS allocation_buckets (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  product_variant_id BIGINT NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
-  supplier_id       BIGINT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
-  date              DATE NOT NULL,
-  allocation_type   TEXT NOT NULL,
-  quantity          INT NULL, -- NULL = unlimited
-  booked            INT NOT NULL DEFAULT 0,
-  held              INT NOT NULL DEFAULT 0,
-  release_period_hours INT NULL,
-  stop_sell         BOOLEAN NOT NULL DEFAULT FALSE,
-  blackout          BOOLEAN NOT NULL DEFAULT FALSE,
-  category_id       BIGINT NULL,
-  slot_id           BIGINT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (allocation_type IN ('committed','on_request','freesale')),
-  CHECK (quantity IS NULL OR quantity >= 0),
-  CHECK (booked >= 0 AND held >= 0),
-  UNIQUE (org_id, product_variant_id, supplier_id, date, COALESCE(category_id,0), COALESCE(slot_id,0))
+CREATE TABLE public.organization_invitations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  email character varying NOT NULL,
+  role character varying NOT NULL DEFAULT 'agent'::character varying CHECK (role::text = ANY (ARRAY['owner'::character varying, 'admin'::character varying, 'manager'::character varying, 'agent'::character varying, 'viewer'::character varying]::text[])),
+  invited_by uuid,
+  invitation_token character varying NOT NULL UNIQUE,
+  expires_at timestamp without time zone NOT NULL,
+  status character varying DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'accepted'::character varying, 'expired'::character varying, 'revoked'::character varying]::text[])),
+  accepted_at timestamp without time zone,
+  accepted_by uuid,
+  invitation_data jsonb,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT organization_invitations_pkey PRIMARY KEY (id),
+  CONSTRAINT organization_invitations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT organization_invitations_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.users(id),
+  CONSTRAINT organization_invitations_accepted_by_fkey FOREIGN KEY (accepted_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_allocation_buckets_search ON allocation_buckets(org_id, product_variant_id, date);
-
--- Allocation Holds
-CREATE TABLE IF NOT EXISTS allocation_holds (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  allocation_bucket_id BIGINT NOT NULL REFERENCES allocation_buckets(id) ON DELETE CASCADE,
-  quantity          INT NOT NULL,
-  expires_at        TIMESTAMPTZ NOT NULL,
-  booking_ref       TEXT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (quantity > 0)
+CREATE TABLE public.organizations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name character varying NOT NULL,
+  slug character varying NOT NULL UNIQUE,
+  company_registration character varying,
+  tax_id character varying,
+  email character varying,
+  phone character varying,
+  website character varying,
+  address jsonb,
+  logo_url text,
+  brand_colors jsonb,
+  default_currency character varying DEFAULT 'USD'::character varying,
+  timezone character varying DEFAULT 'UTC'::character varying,
+  date_format character varying DEFAULT 'YYYY-MM-DD'::character varying,
+  subscription_plan character varying DEFAULT 'trial'::character varying,
+  subscription_status character varying DEFAULT 'active'::character varying,
+  trial_ends_at timestamp without time zone,
+  subscription_ends_at timestamp without time zone,
+  features jsonb,
+  is_active boolean DEFAULT true,
+  onboarded_at timestamp without time zone,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT organizations_pkey PRIMARY KEY (id)
 );
-CREATE INDEX IF NOT EXISTS idx_allocation_holds_bucket ON allocation_holds(org_id, allocation_bucket_id);
-CREATE INDEX IF NOT EXISTS idx_allocation_holds_expiry ON allocation_holds(org_id, expires_at);
-
--- Packages
-CREATE TABLE IF NOT EXISTS packages (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name              TEXT NOT NULL,
-  description       TEXT NULL,
-  pricing_mode      TEXT NOT NULL,
-  status            TEXT NOT NULL DEFAULT 'active',
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (pricing_mode IN ('fixed','dynamic'))
+CREATE TABLE public.package_components (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  package_id uuid NOT NULL,
+  component_type character varying NOT NULL,
+  product_id uuid,
+  product_option_id uuid,
+  day_number integer NOT NULL,
+  duration_nights integer,
+  quantity integer DEFAULT 1,
+  is_mandatory boolean DEFAULT true,
+  is_customizable boolean DEFAULT false,
+  alternative_options ARRAY,
+  cost_included_in_package boolean DEFAULT true,
+  additional_cost numeric,
+  description text,
+  sort_order integer DEFAULT 0,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT package_components_pkey PRIMARY KEY (id),
+  CONSTRAINT package_components_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.packages(id),
+  CONSTRAINT package_components_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT package_components_product_option_id_fkey FOREIGN KEY (product_option_id) REFERENCES public.product_options(id)
 );
-CREATE INDEX IF NOT EXISTS idx_packages_org ON packages(org_id);
-
--- Package Components
-CREATE TABLE IF NOT EXISTS package_components (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  package_id        BIGINT NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
-  product_variant_id BIGINT NOT NULL REFERENCES product_variants(id) ON DELETE RESTRICT,
-  sequence          INT NOT NULL,
-  quantity          INT NOT NULL DEFAULT 1,
-  pricing_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.package_pricing (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  package_id uuid NOT NULL,
+  valid_from date NOT NULL,
+  valid_to date NOT NULL,
+  adults integer NOT NULL,
+  children integer DEFAULT 0,
+  infants integer DEFAULT 0,
+  room_type character varying,
+  total_price numeric NOT NULL,
+  price_per_adult numeric,
+  price_per_child numeric,
+  currency character varying DEFAULT 'USD'::character varying,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT package_pricing_pkey PRIMARY KEY (id),
+  CONSTRAINT package_pricing_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.packages(id)
 );
-CREATE INDEX IF NOT EXISTS idx_package_components_pkg ON package_components(org_id, package_id, sequence);
-
--- Product Add-ons
-CREATE TABLE IF NOT EXISTS product_addons (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  product_variant_id BIGINT NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
-  name              TEXT NOT NULL,
-  price_type        TEXT NOT NULL,
-  amount            NUMERIC(12,2) NOT NULL,
-  taxable           BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (price_type IN ('per_person','per_booking'))
+CREATE TABLE public.packages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  package_name character varying NOT NULL,
+  package_code character varying NOT NULL,
+  description text,
+  package_type character varying,
+  duration_nights integer,
+  duration_days integer,
+  valid_from date,
+  valid_to date,
+  base_price numeric,
+  currency character varying DEFAULT 'USD'::character varying,
+  is_published boolean DEFAULT false,
+  is_customizable boolean DEFAULT true,
+  tags ARRAY,
+  media jsonb,
+  meta_title character varying,
+  meta_description text,
+  slug character varying,
+  created_by uuid,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT packages_pkey PRIMARY KEY (id),
+  CONSTRAINT packages_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT packages_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_product_addons_variant ON product_addons(org_id, product_variant_id);
-
--- Bookings
-CREATE TABLE IF NOT EXISTS bookings (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  reference         TEXT NOT NULL,
-  channel           TEXT NOT NULL,
-  status            TEXT NOT NULL,
-  total_cost        NUMERIC(14,2) NOT NULL DEFAULT 0,
-  total_price       NUMERIC(14,2) NOT NULL DEFAULT 0,
-  total_margin      NUMERIC(14,2) NOT NULL DEFAULT 0,
-  currency          TEXT NOT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (org_id, reference)
+CREATE TABLE public.payment_method_fees (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  payment_method character varying NOT NULL,
+  currency character varying NOT NULL,
+  fixed_fee numeric DEFAULT 0,
+  percentage_fee numeric DEFAULT 0,
+  fx_markup_percentage numeric DEFAULT 0,
+  min_fee numeric,
+  max_fee numeric,
+  is_active boolean DEFAULT true,
+  valid_from date NOT NULL,
+  valid_to date,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT payment_method_fees_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_method_fees_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
-CREATE INDEX IF NOT EXISTS idx_bookings_org_status ON bookings(org_id, status);
-
--- Booking Items
-CREATE TABLE IF NOT EXISTS booking_items (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  booking_id        BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  product_variant_id BIGINT NOT NULL REFERENCES product_variants(id) ON DELETE RESTRICT,
-  supplier_id       BIGINT NULL REFERENCES suppliers(id) ON DELETE SET NULL,
-  state             TEXT NOT NULL,
-  service_start     TIMESTAMPTZ NOT NULL,
-  service_end       TIMESTAMPTZ NULL,
-  quantity          INT NOT NULL DEFAULT 1,
-  pax_breakdown     JSONB NOT NULL DEFAULT '{}'::jsonb,
-  unit_cost         NUMERIC(12,2) NOT NULL DEFAULT 0,
-  unit_price        NUMERIC(12,2) NOT NULL DEFAULT 0,
-  margin            NUMERIC(12,2) NOT NULL DEFAULT 0,
-  product_variant_name TEXT NOT NULL,
-  supplier_name     TEXT NULL,
-  rate_plan_code    TEXT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (state IN ('option','needs_supplier_assignment','supplier_pending','confirmed','cancelled'))
+CREATE TABLE public.payments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  booking_id uuid NOT NULL,
+  payment_reference character varying NOT NULL UNIQUE,
+  amount numeric NOT NULL,
+  currency character varying DEFAULT 'USD'::character varying,
+  payment_method character varying,
+  payment_type character varying,
+  status character varying DEFAULT 'pending'::character varying,
+  gateway_transaction_id character varying,
+  gateway_response jsonb,
+  due_date date,
+  paid_at timestamp without time zone,
+  notes text,
+  created_by uuid,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT payments_pkey PRIMARY KEY (id),
+  CONSTRAINT payments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT payments_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id),
+  CONSTRAINT payments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_booking_items_queue ON booking_items(org_id, state);
-CREATE INDEX IF NOT EXISTS idx_booking_items_booking ON booking_items(org_id, booking_id);
-
--- Booking Item Add-ons
-CREATE TABLE IF NOT EXISTS booking_item_addons (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  booking_item_id   BIGINT NOT NULL REFERENCES booking_items(id) ON DELETE CASCADE,
-  addon_id          BIGINT NULL REFERENCES product_addons(id) ON DELETE SET NULL,
-  quantity          INT NOT NULL DEFAULT 1,
-  amount            NUMERIC(12,2) NOT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.product_options (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL,
+  option_name character varying NOT NULL,
+  option_code character varying NOT NULL,
+  description text,
+  standard_occupancy integer,
+  max_occupancy integer,
+  min_occupancy integer DEFAULT 1,
+  bed_configuration character varying,
+  attributes jsonb,
+  inclusions ARRAY,
+  is_active boolean DEFAULT true,
+  sort_order integer DEFAULT 0,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT product_options_pkey PRIMARY KEY (id),
+  CONSTRAINT product_options_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
-CREATE INDEX IF NOT EXISTS idx_booking_item_addons_item ON booking_item_addons(org_id, booking_item_id);
-
--- Passengers
-CREATE TABLE IF NOT EXISTS passengers (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  booking_id        BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  full_name         TEXT NOT NULL,
-  dob               DATE NULL,
-  age               SMALLINT NULL,
-  gender            TEXT NULL,
-  passport          TEXT NULL,
-  nationality       TEXT NULL,
-  dietary           TEXT NULL,
-  medical           TEXT NULL,
-  is_lead           BOOLEAN NOT NULL DEFAULT FALSE,
-  assignment        JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.product_types (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  type_code character varying NOT NULL UNIQUE,
+  type_name character varying NOT NULL,
+  schema_definition jsonb,
+  is_active boolean DEFAULT true,
+  CONSTRAINT product_types_pkey PRIMARY KEY (id)
 );
-CREATE INDEX IF NOT EXISTS idx_passengers_booking ON passengers(org_id, booking_id);
-
--- Payment Schedules
-CREATE TABLE IF NOT EXISTS payment_schedules (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  booking_id        BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  type              TEXT NOT NULL,
-  amount            NUMERIC(12,2) NOT NULL,
-  due_at            TIMESTAMPTZ NOT NULL,
-  status            TEXT NOT NULL DEFAULT 'pending',
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (type IN ('deposit','balance','installment'))
+CREATE TABLE public.products (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  product_type_id uuid NOT NULL,
+  name character varying NOT NULL,
+  code character varying NOT NULL,
+  description text,
+  location jsonb,
+  attributes jsonb,
+  media jsonb,
+  tags ARRAY,
+  meta_title character varying,
+  meta_description text,
+  is_active boolean DEFAULT true,
+  is_featured boolean DEFAULT false,
+  created_by uuid,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT products_pkey PRIMARY KEY (id),
+  CONSTRAINT products_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT products_product_type_id_fkey FOREIGN KEY (product_type_id) REFERENCES public.product_types(id),
+  CONSTRAINT products_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE INDEX IF NOT EXISTS idx_payment_schedules_due ON payment_schedules(org_id, due_at);
-
--- Payments (customer)
-CREATE TABLE IF NOT EXISTS payments (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  payment_schedule_id BIGINT NOT NULL REFERENCES payment_schedules(id) ON DELETE CASCADE,
-  amount            NUMERIC(12,2) NOT NULL,
-  received_at       TIMESTAMPTZ NOT NULL,
-  method            TEXT NOT NULL,
-  status            TEXT NOT NULL,
-  reference         TEXT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.rate_occupancy_costs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  supplier_rate_id uuid NOT NULL,
+  occupancy integer NOT NULL,
+  is_standard_occupancy boolean DEFAULT false,
+  base_cost numeric NOT NULL,
+  adult_cost numeric,
+  child_cost numeric,
+  infant_cost numeric,
+  extra_adult_cost numeric,
+  extra_child_cost numeric,
+  board_basis character varying,
+  board_included boolean DEFAULT false,
+  board_supplement numeric,
+  currency character varying DEFAULT 'USD'::character varying,
+  CONSTRAINT rate_occupancy_costs_pkey PRIMARY KEY (id),
+  CONSTRAINT rate_occupancy_costs_supplier_rate_id_fkey FOREIGN KEY (supplier_rate_id) REFERENCES public.supplier_rates(id)
 );
-CREATE INDEX IF NOT EXISTS idx_payments_schedule ON payments(org_id, payment_schedule_id);
-
--- Supplier Payments (payables)
-CREATE TABLE IF NOT EXISTS supplier_payments (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  booking_item_id   BIGINT NOT NULL REFERENCES booking_items(id) ON DELETE CASCADE,
-  amount            NUMERIC(12,2) NOT NULL,
-  due_at            TIMESTAMPTZ NOT NULL,
-  status            TEXT NOT NULL DEFAULT 'pending',
-  invoice_ref       TEXT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.rate_taxes_fees (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  supplier_rate_id uuid,
+  contract_id uuid,
+  fee_name character varying NOT NULL,
+  fee_type character varying NOT NULL,
+  calculation_method character varying NOT NULL,
+  amount numeric NOT NULL,
+  applies_to_adults boolean DEFAULT true,
+  applies_to_children boolean DEFAULT false,
+  applies_to_infants boolean DEFAULT false,
+  child_age_from integer,
+  child_age_to integer,
+  is_included_in_rate boolean DEFAULT false,
+  is_payable_at_property boolean DEFAULT false,
+  currency character varying DEFAULT 'USD'::character varying,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT rate_taxes_fees_pkey PRIMARY KEY (id),
+  CONSTRAINT rate_taxes_fees_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT rate_taxes_fees_supplier_rate_id_fkey FOREIGN KEY (supplier_rate_id) REFERENCES public.supplier_rates(id),
+  CONSTRAINT rate_taxes_fees_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id)
 );
-CREATE INDEX IF NOT EXISTS idx_supplier_payments_due ON supplier_payments(org_id, due_at);
-
--- Agents and Commissions
-CREATE TABLE IF NOT EXISTS agents (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name              TEXT NOT NULL,
-  terms             JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.rooming_lists (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  booking_item_id uuid NOT NULL,
+  room_number integer,
+  passenger_ids ARRAY NOT NULL,
+  bed_preference character varying,
+  floor_preference character varying,
+  room_requests text,
+  confirmed_by_hotel boolean DEFAULT false,
+  hotel_room_number character varying,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT rooming_lists_pkey PRIMARY KEY (id),
+  CONSTRAINT rooming_lists_booking_item_id_fkey FOREIGN KEY (booking_item_id) REFERENCES public.booking_items(id)
 );
-CREATE INDEX IF NOT EXISTS idx_agents_org ON agents(org_id);
-
-CREATE TABLE IF NOT EXISTS agent_commissions (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  booking_id        BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  basis             TEXT NOT NULL, -- net|gross
-  rate              NUMERIC(6,4) NOT NULL,
-  amount            NUMERIC(12,2) NOT NULL,
-  status            TEXT NOT NULL DEFAULT 'pending',
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (basis IN ('net','gross'))
+CREATE TABLE public.selling_rate_occupancy (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  selling_rate_id uuid NOT NULL,
+  occupancy integer NOT NULL,
+  is_standard_occupancy boolean DEFAULT false,
+  selling_price numeric NOT NULL,
+  adult_price numeric,
+  child_price numeric,
+  infant_price numeric,
+  extra_adult_price numeric,
+  extra_child_price numeric,
+  board_basis character varying,
+  board_included boolean DEFAULT false,
+  board_price numeric,
+  currency character varying DEFAULT 'USD'::character varying,
+  CONSTRAINT selling_rate_occupancy_pkey PRIMARY KEY (id),
+  CONSTRAINT selling_rate_occupancy_selling_rate_id_fkey FOREIGN KEY (selling_rate_id) REFERENCES public.selling_rates(id)
 );
-CREATE INDEX IF NOT EXISTS idx_agent_commissions_booking ON agent_commissions(org_id, booking_id);
-
-CREATE TABLE IF NOT EXISTS commission_payments (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  agent_id          BIGINT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-  amount            NUMERIC(12,2) NOT NULL,
-  paid_at           TIMESTAMPTZ NOT NULL,
-  reference         TEXT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.selling_rates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  product_option_id uuid,
+  rate_name character varying,
+  rate_basis character varying NOT NULL,
+  valid_from date NOT NULL,
+  valid_to date NOT NULL,
+  base_price numeric NOT NULL,
+  currency character varying DEFAULT 'USD'::character varying,
+  markup_type character varying,
+  markup_amount numeric,
+  customer_type character varying,
+  min_pax integer,
+  max_pax integer,
+  dow_mask ARRAY,
+  is_active boolean DEFAULT true,
+  priority integer DEFAULT 0,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT selling_rates_pkey PRIMARY KEY (id),
+  CONSTRAINT selling_rates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT selling_rates_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT selling_rates_product_option_id_fkey FOREIGN KEY (product_option_id) REFERENCES public.product_options(id)
 );
-CREATE INDEX IF NOT EXISTS idx_commission_payments_agent ON commission_payments(org_id, agent_id, paid_at);
-
--- Fulfillment Tasks
-CREATE TABLE IF NOT EXISTS fulfillment_tasks (
-  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  org_id            BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  booking_item_id   BIGINT NOT NULL REFERENCES booking_items(id) ON DELETE CASCADE,
-  type              TEXT NOT NULL,
-  payload           JSONB NOT NULL DEFAULT '{}'::jsonb,
-  due_at            TIMESTAMPTZ NULL,
-  status            TEXT NOT NULL DEFAULT 'pending',
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.sourcing_quotes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  sourcing_request_id uuid NOT NULL,
+  supplier_id uuid NOT NULL,
+  quoted_price numeric NOT NULL,
+  currency character varying DEFAULT 'USD'::character varying,
+  availability_confirmed boolean DEFAULT false,
+  valid_until timestamp without time zone,
+  quote_details jsonb,
+  notes text,
+  is_selected boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT sourcing_quotes_pkey PRIMARY KEY (id),
+  CONSTRAINT sourcing_quotes_sourcing_request_id_fkey FOREIGN KEY (sourcing_request_id) REFERENCES public.sourcing_requests(id),
+  CONSTRAINT sourcing_quotes_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id)
 );
-CREATE INDEX IF NOT EXISTS idx_fulfillment_tasks_queue ON fulfillment_tasks(org_id, status, due_at);
-
--- Helpful partial indexes for queues (example; adapt as needed)
-CREATE INDEX IF NOT EXISTS idx_booking_items_needs_action ON booking_items(org_id)
-  WHERE state IN ('needs_supplier_assignment','supplier_pending','option');
-
--- Notes on partitioning (apply in later migration once volumes justify):
--- - allocation_buckets: RANGE PARTITION by date, SUBPARTITION by org_id
--- - booking_items: RANGE PARTITION by service_start::date, SUBPARTITION by org_id
--- - payment_schedules: RANGE PARTITION by due_at::date, SUBPARTITION by org_id
-
-
+CREATE TABLE public.sourcing_requests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  booking_item_id uuid NOT NULL,
+  request_status character varying DEFAULT 'pending'::character varying,
+  priority integer DEFAULT 0,
+  required_by timestamp without time zone,
+  specifications jsonb,
+  assigned_to uuid,
+  assigned_at timestamp without time zone,
+  notes text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT sourcing_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT sourcing_requests_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT sourcing_requests_booking_item_id_fkey FOREIGN KEY (booking_item_id) REFERENCES public.booking_items(id),
+  CONSTRAINT sourcing_requests_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id)
+);
+CREATE TABLE public.supplier_rates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  contract_id uuid,
+  contract_allocation_id uuid,
+  product_id uuid NOT NULL,
+  product_option_id uuid,
+  rate_name character varying,
+  valid_from date NOT NULL,
+  valid_to date NOT NULL,
+  rate_basis character varying NOT NULL,
+  dow_mask ARRAY,
+  is_default boolean DEFAULT false,
+  is_included_in_package boolean DEFAULT true,
+  is_extra_night_rate boolean DEFAULT false,
+  currency character varying DEFAULT 'USD'::character varying,
+  priority integer DEFAULT 0,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT supplier_rates_pkey PRIMARY KEY (id),
+  CONSTRAINT supplier_rates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT supplier_rates_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id),
+  CONSTRAINT supplier_rates_contract_allocation_id_fkey FOREIGN KEY (contract_allocation_id) REFERENCES public.contract_allocations(id),
+  CONSTRAINT supplier_rates_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT supplier_rates_product_option_id_fkey FOREIGN KEY (product_option_id) REFERENCES public.product_options(id)
+);
+CREATE TABLE public.suppliers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  name character varying NOT NULL,
+  code character varying NOT NULL,
+  supplier_type character varying,
+  contact_info jsonb,
+  payment_terms jsonb,
+  commission_rate numeric,
+  rating numeric,
+  total_bookings integer DEFAULT 0,
+  is_active boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT suppliers_pkey PRIMARY KEY (id),
+  CONSTRAINT suppliers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.users (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  email character varying NOT NULL,
+  password_hash character varying,
+  first_name character varying,
+  last_name character varying,
+  phone character varying,
+  avatar_url text,
+  role character varying NOT NULL DEFAULT 'user'::character varying,
+  permissions jsonb,
+  is_active boolean DEFAULT true,
+  email_verified boolean DEFAULT false,
+  last_login_at timestamp without time zone,
+  failed_login_attempts integer DEFAULT 0,
+  locked_until timestamp without time zone,
+  password_reset_token character varying,
+  password_reset_expires timestamp without time zone,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  auth_id uuid UNIQUE,
+  auth_provider character varying DEFAULT 'email'::character varying,
+  CONSTRAINT users_pkey PRIMARY KEY (id),
+  CONSTRAINT users_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);

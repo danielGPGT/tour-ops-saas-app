@@ -1,22 +1,15 @@
-import { createClient } from '@/utils/supabase/server';
+import { createDatabaseService } from '@/lib/database';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const orgId = 1; // TODO: Get from session
-
   try {
-    const supabase = await createClient();
-    const { data: suppliers, error } = await supabase
-      .from('suppliers')
-      .select('id, name, status, created_at')
-      .eq('org_id', orgId)
-      .order('name', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching suppliers:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
+    const db = await createDatabaseService();
+    
+    // For now, using a hardcoded organization ID
+    // In production, this would come from the authenticated user's session
+    const organizationId = '11111111-1111-1111-1111-111111111111';
+    
+    const suppliers = await db.getSuppliers(organizationId);
 
     return NextResponse.json({ success: true, data: suppliers });
   } catch (error) {
@@ -26,28 +19,31 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const orgId = 1; // TODO: Get from session
-
   try {
-    const { name, email, phone } = await request.json();
+    const { name, code, supplier_type, contact_info, commission_rate } = await request.json();
     
-    if (!name?.trim()) {
-      return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
+    if (!name?.trim() || !code?.trim()) {
+      return NextResponse.json({ success: false, error: 'Name and code are required' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const db = await createDatabaseService();
+    const supabase = await db.getServerDatabase();
+    
+    // For now, using a hardcoded organization ID
+    const organizationId = '11111111-1111-1111-1111-111111111111';
+    
     const { data: supplier, error } = await supabase
       .from('suppliers')
       .insert({
-        org_id: orgId,
+        organization_id: organizationId,
         name: name.trim(),
-        terms: {
-          contact_email: email || null,
-          contact_phone: phone || null
-        },
-        status: 'active'
+        code: code.trim(),
+        supplier_type: supplier_type || null,
+        contact_info: contact_info || null,
+        commission_rate: commission_rate || null,
+        is_active: true
       })
-      .select('id, name, status')
+      .select('id, name, code, supplier_type, is_active')
       .single();
 
     if (error) {

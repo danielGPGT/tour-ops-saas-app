@@ -16,36 +16,12 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 
-type Product = {
-  id: number;
-  name: string;
-  type: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  product_types?: {
-    id: number;
-    name: string;
-    description: string;
-    icon: string;
-    color: string;
-    is_default: boolean;
-  };
-  product_variants?: Array<{
-    id: number;
-    name: string;
-    subtype: string;
-    status: string;
-  }>;
-};
+import { Product, ProductType, ProductOption } from '@/lib/types/database';
 
-type ProductType = {
-  id: number;
-  name: string;
-  description: string;
-  icon: string;
-  color: string;
-  is_default: boolean;
+// Updated types for the new schema
+type ProductWithDetails = Product & {
+  product_types?: ProductType;
+  product_options?: ProductOption[];
 };
 
 type ProductStats = {

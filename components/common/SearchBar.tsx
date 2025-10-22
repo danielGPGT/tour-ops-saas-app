@@ -17,7 +17,7 @@ export interface SearchBarProps {
 export function SearchBar({ 
   placeholder = "Search...",
   searchParam = "q",
-  debounceMs = 300,
+  debounceMs = 500,
   className = "",
   showClearButton = true
 }: SearchBarProps) {
@@ -25,47 +25,72 @@ export function SearchBar({
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get(searchParam) || "");
   const [isSearching, setIsSearching] = useState(false);
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
 
   // Update local state when URL changes (e.g., from browser back/forward)
   useEffect(() => {
-    setQuery(searchParams.get(searchParam) || "");
+    const urlQuery = searchParams.get(searchParam) || "";
+    if (urlQuery !== query) {
+      setQuery(urlQuery);
+    }
   }, [searchParams, searchParam]);
 
   // Debounced search function
   const debouncedSearch = useCallback(
     (searchQuery: string) => {
       const trimmedQuery = searchQuery.trim();
+      const currentUrlQuery = searchParams.get(searchParam) || "";
       
-      // Build new URL with search query
-      const params = new URLSearchParams(searchParams.toString());
-      if (trimmedQuery) {
-        params.set(searchParam, trimmedQuery);
-      } else {
-        params.delete(searchParam);
+      // Only update URL if the query actually changed
+      if (trimmedQuery !== currentUrlQuery) {
+        // Build new URL with search query
+        const params = new URLSearchParams(searchParams.toString());
+        if (trimmedQuery) {
+          params.set(searchParam, trimmedQuery);
+        } else {
+          params.delete(searchParam);
+        }
+        // Reset to page 1 when searching
+        params.set("page", "1");
+        
+        // Navigate to the same page with new search params
+        router.push(`?${params.toString()}`);
       }
-      // Reset to page 1 when searching
-      params.set("page", "1");
-      
-      // Navigate to the same page with new search params
-      router.push(`?${params.toString()}`);
       setIsSearching(false);
     },
     [router, searchParams, searchParam]
   );
 
-  // Debounce effect
+  // Debounce effect with better state management
   useEffect(() => {
-    if (query === searchParams.get(searchParam)) {
-      return; // Don't search if query matches current URL param
+    // Clear existing timeout
+    if (timeoutId) {
+      clearTimeout(timeoutId);
     }
 
-    setIsSearching(true);
-    const timeoutId = setTimeout(() => {
+    // Don't search if query matches current URL param
+    if (query === (searchParams.get(searchParam) || "")) {
+      setIsSearching(false);
+      return;
+    }
+
+    // Only show searching indicator if query is not empty
+    if (query.trim()) {
+      setIsSearching(true);
+    }
+
+    const newTimeoutId = setTimeout(() => {
       debouncedSearch(query);
     }, debounceMs);
 
-    return () => clearTimeout(timeoutId);
-  }, [query, debouncedSearch, searchParams, searchParam, debounceMs]);
+    setTimeoutId(newTimeoutId);
+
+    return () => {
+      if (newTimeoutId) {
+        clearTimeout(newTimeoutId);
+      }
+    };
+  }, [query, debounceMs]);
 
   const handleClear = () => {
     setQuery("");

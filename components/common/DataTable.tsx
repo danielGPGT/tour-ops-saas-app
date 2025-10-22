@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TableSkeleton } from "./LoadingSkeleton";
 import { format } from "date-fns";
 
 export interface DataTableColumn<T> {
@@ -18,43 +19,47 @@ export interface DataTableColumn<T> {
 export interface DataTableProps<T> {
   data: T[];
   columns: DataTableColumn<T>[];
-  selectedItems: T[];
-  onSelectionChange: (items: T[]) => void;
-  getId: (item: T) => string | number;
+  selectedItems?: T[];
+  onSelectionChange?: (items: T[]) => void;
+  getId?: (item: T) => string | number;
   emptyState?: {
     icon: React.ReactNode;
     title: string;
     description: string;
   };
   className?: string;
+  onRowClick?: (item: T) => void;
+  isLoading?: boolean;
 }
 
 export function DataTable<T>({ 
   data, 
   columns, 
-  selectedItems, 
-  onSelectionChange, 
-  getId,
+  selectedItems = [], 
+  onSelectionChange = () => {}, 
+  getId = (item: any) => item.id || item,
   emptyState,
-  className = ""
+  className = "",
+  onRowClick,
+  isLoading = false
 }: DataTableProps<T>) {
-  const selectedIds = new Set(selectedItems.map(item => getId(item).toString()));
+  const selectedIds = new Set((selectedItems || []).map(item => getId(item).toString()));
   const allSelected = data.length > 0 && data.every(item => selectedIds.has(getId(item).toString()));
   const someSelected = data.some(item => selectedIds.has(getId(item).toString()));
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      onSelectionChange([...selectedItems, ...data.filter(item => !selectedIds.has(getId(item).toString()))]);
+      onSelectionChange([...(selectedItems || []), ...data.filter(item => !selectedIds.has(getId(item).toString()))]);
     } else {
-      onSelectionChange(selectedItems.filter(item => !data.some(dataItem => getId(dataItem) === getId(item))));
+      onSelectionChange((selectedItems || []).filter(item => !data.some(dataItem => getId(dataItem) === getId(item))));
     }
   };
 
   const handleSelectItem = (item: T, checked: boolean) => {
     if (checked) {
-      onSelectionChange([...selectedItems, item]);
+      onSelectionChange([...(selectedItems || []), item]);
     } else {
-      onSelectionChange(selectedItems.filter(selectedItem => getId(selectedItem) !== getId(item)));
+      onSelectionChange((selectedItems || []).filter(selectedItem => getId(selectedItem) !== getId(item)));
     }
   };
 
@@ -112,6 +117,15 @@ export function DataTable<T>({
     return <span className="text-sm">{String(value || '—')}</span>;
   };
 
+  // Show loading skeleton if loading
+  if (isLoading) {
+    return (
+      <div className={`bg-card shadow-sm rounded-md overflow-hidden p-6 ${className}`}>
+        <TableSkeleton rows={5} columns={columns.length} />
+      </div>
+    );
+  }
+
   return (
     <TooltipProvider>
         
@@ -134,12 +148,13 @@ export function DataTable<T>({
             </TableHead>
             {columns.map((column, index) => {
               // Determine alignment based on column width or content
-              const isActionsColumn = column.header.toLowerCase().includes('actions');
-              const isNumericColumn = column.header.toLowerCase().includes('created') || 
-                                    column.header.toLowerCase().includes('updated') ||
-                                    column.header.toLowerCase().includes('date') ||
-                                    column.header.toLowerCase().includes('status') ||
-                                    column.header.toLowerCase().includes('variants');
+              const headerText = column.header || '';
+              const isActionsColumn = headerText.toLowerCase().includes('actions');
+              const isNumericColumn = headerText.toLowerCase().includes('created') || 
+                                    headerText.toLowerCase().includes('updated') ||
+                                    headerText.toLowerCase().includes('date') ||
+                                    headerText.toLowerCase().includes('status') ||
+                                    headerText.toLowerCase().includes('variants');
               
               const alignmentClass = isActionsColumn 
                 ? "text-right" 
@@ -160,21 +175,27 @@ export function DataTable<T>({
         </TableHeader>
         <TableBody>
           {data.map((item) => (
-            <TableRow key={getId(item).toString()} className="hover:bg-primary/5">
+            <TableRow 
+              key={getId(item).toString()} 
+              className="hover:bg-primary/5 cursor-pointer"
+              onClick={() => onRowClick?.(item)}
+            >
               <TableCell>
                 <Checkbox
                   checked={selectedIds.has(getId(item).toString())}
                   onCheckedChange={(checked) => handleSelectItem(item, Boolean(checked))}
+                  onClick={(e) => e.stopPropagation()}
                 />
               </TableCell>
               {columns.map((column, index) => {
                 // Match alignment with header
-                const isActionsColumn = column.header.toLowerCase().includes('actions');
-                const isNumericColumn = column.header.toLowerCase().includes('created') || 
-                                      column.header.toLowerCase().includes('updated') ||
-                                      column.header.toLowerCase().includes('date') ||
-                                      column.header.toLowerCase().includes('status') ||
-                                      column.header.toLowerCase().includes('variants');
+                const headerText = column.header || '';
+                const isActionsColumn = headerText.toLowerCase().includes('actions');
+                const isNumericColumn = headerText.toLowerCase().includes('created') || 
+                                      headerText.toLowerCase().includes('updated') ||
+                                      headerText.toLowerCase().includes('date') ||
+                                      headerText.toLowerCase().includes('status') ||
+                                      headerText.toLowerCase().includes('variants');
                 
                 const alignmentClass = isActionsColumn 
                   ? "text-right" 

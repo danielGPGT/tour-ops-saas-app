@@ -27,7 +27,7 @@ export function SummaryCards({ cards, className = "" }: SummaryCardsProps) {
   return (
     <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 ${className}`}>
       {cards.map((card) => (
-        <Card key={card.id} className="border border-border/50 shadow-sm">
+        <Card key={card.id} className="shadow-sm border-0">
           <CardContent className="">
             <div className="flex items-center justify-between">
               <div>

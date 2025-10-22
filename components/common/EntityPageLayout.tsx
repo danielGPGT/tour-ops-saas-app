@@ -7,6 +7,7 @@ import { DataTable } from "./DataTable";
 import { BulkActions } from "./BulkActions";
 import { Pagination } from "./Pagination";
 import { SummaryCards } from "./SummaryCards";
+import { SummaryCardsSkeleton } from "./LoadingSkeleton";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 
@@ -30,6 +31,7 @@ export interface EntityPageLayoutProps<T> {
     title: string;
     description: string;
   };
+  onRowClick?: (item: T) => void;
   
   // Bulk actions
   bulkActions: any[];
@@ -83,6 +85,7 @@ export function EntityPageLayout<T>({
   onSelectionChange,
   getId,
   emptyState,
+  onRowClick,
   bulkActions,
   getItemName,
   getItemId,
@@ -145,6 +148,15 @@ export function EntityPageLayout<T>({
           </div>
         </div>
 
+        {/* Summary Cards */}
+        {isLoading ? (
+          <SummaryCardsSkeleton />
+        ) : (
+          summaryCards && summaryCards.length > 0 && (
+            <SummaryCards cards={summaryCards} />
+          )
+        )}
+
         {/* Search Results Info */}
         {searchQuery && (
           <div className="flex items-center justify-between">
@@ -189,6 +201,8 @@ export function EntityPageLayout<T>({
           onSelectionChange={onSelectionChange}
           getId={getId}
           emptyState={emptyState}
+          onRowClick={onRowClick}
+          isLoading={isLoading}
         />
 
         {/* Custom Content (like modals) */}
@@ -203,11 +217,6 @@ export function EntityPageLayout<T>({
           onPageChange={onPageChange}
           searchParams={searchParams}
         />
-
-        {/* Summary Cards */}
-        {summaryCards && summaryCards.length > 0 && (
-          <SummaryCards cards={summaryCards} />
-        )}
       </div>
     </TooltipProvider>
   );

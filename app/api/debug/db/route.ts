@@ -1,38 +1,35 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { createDatabaseService } from '@/lib/database';
 
 export async function GET() {
   try {
     // Test basic database connection
-    await prisma.$connect();
+    const db = await createDatabaseService();
+    const supabase = db.getServerDatabase();
     
-    // Test querying a simple table
-    const orgCount = await prisma.organizations.count();
+    // Test querying organizations
+    const { count: orgCount } = await supabase
+      .from('organizations')
+      .select('*', { count: 'exact', head: true });
     
-    // Test if new tables exist
-    const hasInventoryPools = await prisma.$queryRaw`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'inventory_pools'
-      ) as exists;
-    `;
+    // Test if new tables exist by querying them
+    const { data: products } = await supabase
+      .from('products')
+      .select('id')
+      .limit(1);
     
-    const hasRoomAssignments = await prisma.$queryRaw`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'room_assignments'
-      ) as exists;
-    `;
-
-    await prisma.$disconnect();
+    const { data: suppliers } = await supabase
+      .from('suppliers')
+      .select('id')
+      .limit(1);
 
     return NextResponse.json({
       status: 'ok',
       connection: 'successful',
-      organizations_count: orgCount,
+      organizations_count: orgCount || 0,
       new_tables: {
-        inventory_pools: hasInventoryPools[0]?.exists || false,
-        room_assignments: hasRoomAssignments[0]?.exists || false,
+        products: products !== null,
+        suppliers: suppliers !== null,
       },
       message: 'Database connection successful'
     });

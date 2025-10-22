@@ -1,20 +1,24 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { createDatabaseService } from '@/lib/database';
 
 export async function GET() {
   try {
     // Test basic database connection
-    await prisma.$connect();
+    const db = await createDatabaseService();
+    const supabase = db.getServerDatabase();
     
     // Test a simple query
-    const result = await prisma.$queryRaw`SELECT 1 as test`;
-    
-    await prisma.$disconnect();
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('id')
+      .limit(1);
+
+    if (error) throw error;
 
     return NextResponse.json({
       success: true,
       message: 'Database connection successful',
-      result: result
+      result: data
     });
   } catch (error) {
     console.error('Database test error:', error);

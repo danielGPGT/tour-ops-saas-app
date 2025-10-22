@@ -1,6 +1,5 @@
 "use client";
 
-
 import Image from "next/image";
 import * as React from "react";
 import {
@@ -25,6 +24,7 @@ import { NavDocuments } from "@/components/nav-documents";
 import { NavMain } from "@/components/nav-main";
 import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
+import { useAuth } from "@/lib/hooks/useAuth";
 import {
   Sidebar,
   SidebarContent,
@@ -36,11 +36,6 @@ import {
 } from "@/components/ui/sidebar";
 
 const data = {
-  user: {
-    name: "John Doe",
-    email: "john@acmetours.com",
-    avatar: "/avatars/user.jpg",
-  },
   navMain: [
     {
       title: "Dashboard",
@@ -165,6 +160,16 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { profile, user } = useAuth()
+  
+  // Create user data from authentication
+  const userData = {
+    name: profile ? `${profile.first_name} ${profile.last_name}` : user?.email || 'User',
+    email: profile?.email || user?.email || '',
+    avatar: profile?.avatar_url || '/avatars/user.jpg',
+    organization: profile?.organization?.name || 'Organization'
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props} className="border-none">
       <SidebarHeader className="pt-20">
@@ -184,7 +189,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={userData} />
       </SidebarFooter>
     </Sidebar>
   )

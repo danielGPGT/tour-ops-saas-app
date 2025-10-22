@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { createDatabaseService } from "@/lib/database";
 
-const DEFAULT_ORG_ID = BigInt(1); // TODO: replace with org from session/tenant resolution
+const DEFAULT_ORG_ID = '11111111-1111-1111-1111-111111111111'; // TODO: replace with org from session/tenant resolution
 
 // Product Type Schema
 const ProductTypeSchema = z.object({
@@ -34,16 +34,26 @@ export async function createProductType(formData: FormData) {
       color: formData.get("color"),
     });
 
-    const productType = await prisma.product_types.create({
-      data: {
-        org_id: orgId,
-        name: validatedData.name,
-        description: validatedData.description,
-        icon: validatedData.icon,
-        color: validatedData.color,
-        is_default: false, // Custom types are never default
-      },
-    });
+    const db = await createDatabaseService();
+    const supabase = db.getServerDatabase();
+
+    const { data: productType, error } = await supabase
+      .from('product_types')
+      .insert({
+        organization_id: orgId,
+        type_name: validatedData.name,
+        type_code: validatedData.name.toLowerCase().replace(/\s+/g, '-'),
+        schema_definition: {
+          description: validatedData.description,
+          icon: validatedData.icon,
+          color: validatedData.color
+        },
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     revalidatePath("/product-types");
     return { success: true, data: productType };

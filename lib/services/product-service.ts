@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/db";
-import type { ProductTemplate, InventoryPool, RatePlan, RateOccupancy } from "@prisma/client";
+import { createDatabaseService } from "@/lib/database";
+import type { Product, ProductType, ProductOption } from "@/lib/types/database";
 
 // Types for the new wizard data structure
 interface WizardData {
