@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { SearchBar } from '@/components/common/SearchBar'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { BulkActions } from '@/components/common/BulkActions'
 import { SummaryCards } from '@/components/common/SummaryCards'
 import { DataTable } from '@/components/common/DataTable'
@@ -15,7 +16,7 @@ import { useProducts, useProductStats, useDeleteProduct, useCreateProduct, useUp
 import { useProductTypes } from '@/lib/hooks/useProducts'
 import { EventToast, showSuccess, showError } from '@/components/common/EventToast'
 import { StorageService } from '@/lib/storage'
-import { Plus, Package, Star, MapPin, TrendingUp } from 'lucide-react'
+import { Plus, Package, Star, MapPin, TrendingUp, Search } from 'lucide-react'
 import type { Product, ProductFilters, ProductSort } from '@/lib/types/product'
 
 export default function ProductsPage() {
@@ -23,8 +24,8 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([])
   const [viewMode, setViewMode] = useState<'all' | 'active' | 'inactive'>('all')
-  const [productTypeFilter, setProductTypeFilter] = useState<string>('')
-  const [locationFilter, setLocationFilter] = useState<string>('')
+  const [productTypeFilter, setProductTypeFilter] = useState<string>('all')
+  const [locationFilter, setLocationFilter] = useState<string>('all')
   const [sortField, setSortField] = useState<ProductSort['field']>('name')
   const [sortDirection, setSortDirection] = useState<ProductSort['direction']>('asc')
   const [showCreateWizard, setShowCreateWizard] = useState(false)
@@ -32,9 +33,9 @@ export default function ProductsPage() {
   // Filters
   const filters: ProductFilters = useMemo(() => ({
     search: searchTerm || undefined,
-    product_type_id: productTypeFilter || undefined,
+    product_type_id: productTypeFilter && productTypeFilter !== 'all' ? productTypeFilter : undefined,
     is_active: viewMode === 'all' ? undefined : viewMode === 'active',
-    location: locationFilter ? { city: locationFilter } : undefined
+    location: locationFilter && locationFilter !== 'all' ? { city: locationFilter } : undefined
   }), [searchTerm, productTypeFilter, viewMode, locationFilter])
 
   const sort: ProductSort = useMemo(() => ({
@@ -229,7 +230,7 @@ export default function ProductsPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Products</h1>
+          <h1 className="text-2xl font-bold">Products</h1>
           <p className="text-muted-foreground">
             Manage your product catalog including hotels, events, tours, and transfers
           </p>
@@ -247,37 +248,50 @@ export default function ProductsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Products</CardTitle>
+            <h2 className="text-lg font-semibold">Products</h2>
             <div className="flex items-center gap-4">
-              <SearchBar
-                placeholder="Search products..."
-                value={searchTerm}
-                onChange={setSearchTerm}
-              />
-              <select
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 w-64"
+                />
+              </div>
+              <Select
                 value={productTypeFilter}
-                onChange={(e) => setProductTypeFilter(e.target.value)}
-                className="px-3 py-2 border rounded-md"
+                onValueChange={setProductTypeFilter}
               >
-                <option value="">All Types</option>
-                {productTypes?.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.type_name} ({type.type_code})
-                  </option>
-                ))}
-              </select>
-              <select
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {productTypes?.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.type_name} ({type.type_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
                 value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                className="px-3 py-2 border rounded-md"
+                onValueChange={setLocationFilter}
               >
-                <option value="">All Locations</option>
-                {Array.from(new Set(products.map(p => p.location?.city).filter(Boolean))).map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  {Array.from(new Set(products.map(p => p.location?.city).filter(Boolean))).map((city) => (
+                    <SelectItem key={city} value={city}>
+                      {city}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>

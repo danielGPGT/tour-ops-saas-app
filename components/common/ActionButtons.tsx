@@ -164,17 +164,17 @@ export function ActionButtons({
 
   if (showDelete && onDelete) {
     secondaryActions.push(
-      <>
-        <DropdownMenuSeparator key="separator" />
-        <DropdownMenuItem 
-          key="delete" 
-          onClick={onDelete}
-          className="text-destructive focus:text-destructive"
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete
-        </DropdownMenuItem>
-      </>
+      <DropdownMenuSeparator key="separator" />
+    );
+    secondaryActions.push(
+      <DropdownMenuItem 
+        key="delete" 
+        onClick={onDelete}
+        className="text-destructive focus:text-destructive"
+      >
+        <Trash2 className="mr-2 h-4 w-4" />
+        Delete
+      </DropdownMenuItem>
     );
   }
 

@@ -185,7 +185,7 @@ export default function SuppliersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Suppliers</h1>
+          <h1 className="text-2xl font-bold">Suppliers</h1>
           <p className="text-muted-foreground">
             Manage your supplier relationships and contracts
           </p>

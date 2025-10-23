@@ -429,10 +429,10 @@ export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading 
               className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-primary"
               onClick={() => handleProductTypeSelect(type)}
             >
-              <CardContent className="p-6">
+              <CardContent className="">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg bg-gray-100">
-                    <IconComponent className="h-6 w-6 text-gray-600" />
+                  <div className="p-3 rounded-lg bg-muted">
+                    <IconComponent className="h-6 w-6 text-primary" />
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-lg">{typeInfo.title}</h3>
@@ -458,7 +458,7 @@ export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading 
           </div>
 
       <Card>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Product Name *</Label>
@@ -535,7 +535,7 @@ export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading 
       </div>
 
       <Card>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
               <Label htmlFor="city">City *</Label>

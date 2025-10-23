@@ -120,7 +120,7 @@ export function DataTable<T>({
   // Show loading skeleton if loading
   if (isLoading) {
     return (
-      <div className={`bg-card shadow-sm rounded-md overflow-hidden p-6 ${className}`}>
+      <div className={`bg-card border shadow-sm rounded-md overflow-hidden p-6 ${className}`}>
         <TableSkeleton rows={5} columns={columns.length} />
       </div>
     );
@@ -128,8 +128,8 @@ export function DataTable<T>({
 
   return (
     <TooltipProvider>
-        
-      <Table className={`bg-card shadow-sm rounded-md overflow-hidden ${className}`}>
+      <div className={`bg-card border border-border shadow-sm rounded-md overflow-hidden ${className}`}>
+      <Table>
         <TableHeader className="">
           <TableRow className="bg-muted hover:bg-muted">
             <TableHead className="w-[40px]">
@@ -228,6 +228,7 @@ export function DataTable<T>({
           )}
         </TableBody>
       </Table>
+      </div>
     </TooltipProvider>
   );
 }

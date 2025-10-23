@@ -133,7 +133,7 @@ export default function ContractsPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Contracts</h1>
+          <h1 className="text-2xl font-bold">Contracts</h1>
           <p className="text-muted-foreground">Manage supplier contracts and agreements</p>
         </div>
         <ContractDialogForm

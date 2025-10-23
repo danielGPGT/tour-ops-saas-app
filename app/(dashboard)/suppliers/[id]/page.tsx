@@ -110,7 +110,7 @@ export default function SupplierDetailsPage() {
             supplier={supplier}
             field="name"
             label="Supplier Name"
-            className="text-xl font-bold tracking-tight"
+            className="text-2xl font-bold"
             emptyValue="Unnamed Supplier"
             size="lg"
             variant="minimal"

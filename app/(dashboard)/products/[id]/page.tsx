@@ -1,722 +1,871 @@
-"use client"
+'use client'
 
-import React, { useState, use } from 'react'
-import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { InfoCard } from '@/components/common/InfoCard'
-import { StatsGrid } from '@/components/common/StatsGrid'
-import { PageHeader } from '@/components/common/PageHeader'
-import { EnterpriseInlineEdit, InlineTextEdit, InlineTextareaEdit, InlineSelectEdit } from '@/components/common/EnterpriseInlineEdit'
-import { TagsEditor } from '@/components/common/TagsEditor'
-import { ActivityLog } from '@/components/common/ActivityLog'
-import { useProduct, useDeleteProduct, useUpdateProduct } from '@/lib/hooks/useProducts'
-import { EventToast, showSuccess, showError } from '@/components/common/EventToast'
+import { useState, useMemo } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import { 
-  MapPin, 
-  Star, 
-  Calendar, 
-  Clock, 
-  Car, 
-  Ticket, 
-  Edit, 
+  ArrowLeft, 
   Trash2, 
   Package,
-  Tag,
-  Globe
+  MapPin, 
+  Tag, 
+  Building, 
+  Ticket, 
+  Map, 
+  Car,
+  Image as ImageIcon,
+  Layers,
+  Plus,
+  Edit,
+  MoreHorizontal,
+  DollarSign,
+  TrendingUp,
+  Calendar
 } from 'lucide-react'
-import { format } from 'date-fns'
 
-interface ProductDetailsPageProps {
-  params: Promise<{
-    id: string
-  }>
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PageHeader } from '@/components/common/PageHeader'
+import { ActionButtons } from '@/components/common/ActionButtons'
+import { ConfirmDialog } from '@/components/common/ConfirmDialog'
+import { DataTable, DataTableColumn } from '@/components/common/DataTable'
+import { SideCard } from '@/components/common/SideCard'
+import { DetailRow } from '@/components/common/DetailRow'
+import { StatsGrid } from '@/components/common/StatsGrid'
+import { Badge } from '@/components/ui/badge'
+import { 
+  useProduct, 
+  useDeleteProduct, 
+  useProductOptions 
+} from '@/lib/hooks/useProducts'
+import { formatDate } from '@/lib/utils/formatting'
+import { 
+  ProductInlineEdit, 
+  ProductLocationEdit, 
+  ProductAttributeEdit,
+  ProductStatusEdit 
+} from '@/components/products/ProductInlineEditWrapper'
+import {
+  ProductAttributeSelect,
+  ProductAttributeNumber,
+  ProductAttributeMultiSelect,
+  ProductStarRatingEdit
+} from '@/components/products/ProductAttributeInlineEdit'
+import { ProductTagsEdit } from '@/components/products/ProductTagsEdit'
+import { ProductImagesInlineEdit } from '@/components/products/ProductImagesInlineEdit'
+// import { ProductOptionDialog } from '@/components/products/ProductOptionDialog' // REMOVED - Using type-specific forms
+import { OptionsTable } from '@/components/product-options/OptionsTable'
+import { AccommodationOptionForm } from '@/components/product-options/AccommodationOptionForm'
+import { EventOptionForm } from '@/components/product-options/EventOptionForm'
+import { 
+  ACCOMMODATION_PROPERTY_TYPES,
+  ACCOMMODATION_AMENITIES,
+  EVENT_CATEGORIES,
+  EVENT_STATUSES,
+  AGE_RESTRICTIONS_EVENT,
+  ACTIVITY_DURATION_TYPES,
+  ACTIVITY_DIFFICULTY_LEVELS,
+  ACTIVITY_GROUP_TYPES,
+  ACTIVITY_TYPES,
+  ACTIVITY_SEASONALITY,
+  AGE_RESTRICTIONS_ACTIVITY,
+  TRANSFER_TYPES
+} from '@/lib/config/product-attributes'
+import { PageSkeleton } from '@/components/common/LoadingSkeleton'
+import type { ProductOption } from '@/lib/types/product'
+
+// Product type icons
+const getProductTypeIcon = (typeName: string) => {
+  const type = typeName?.toLowerCase()
+  if (type === 'accommodation' || type?.includes('hotel')) {
+    return <Building className="h-4 w-4" />
+  }
+  if (type === 'event' || type?.includes('ticket') || type?.includes('event')) {
+    return <Ticket className="h-4 w-4" />
+  }
+  if (type === 'activity' || type?.includes('activity') || type?.includes('experience')) {
+    return <Map className="h-4 w-4" />
+  }
+  if (type === 'transfer' || type?.includes('transfer') || type?.includes('transport')) {
+    return <Car className="h-4 w-4" />
+  }
+  return <Package className="h-4 w-4" />
 }
 
-export default function ProductDetailsPage({ params }: ProductDetailsPageProps) {
+// Product type color
+const getProductTypeColor = (typeName: string) => {
+  const type = typeName?.toLowerCase()
+  if (type === 'accommodation' || type?.includes('hotel')) {
+    return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+  }
+  if (type === 'event' || type?.includes('ticket') || type?.includes('event')) {
+    return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
+  }
+  if (type === 'activity' || type?.includes('activity') || type?.includes('experience')) {
+    return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+  }
+  if (type === 'transfer' || type?.includes('transfer') || type?.includes('transport')) {
+    return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300'
+  }
+  return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
+}
+
+export default function ProductDetailsPage() {
+  const params = useParams()
   const router = useRouter()
-  const { id } = use(params)
-  const { data: product, isLoading, error } = useProduct(id)
+  const productId = params.id as string
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([])
+  const [showAddOptionDialog, setShowAddOptionDialog] = useState(false)
+  const [editingOption, setEditingOption] = useState<ProductOption | null>(null)
+
+  // Fetch product and options data
+  const { data: product, isLoading: productLoading } = useProduct(productId)
+  const { data: options = [], isLoading: optionsLoading } = useProductOptions(productId)
   const deleteProduct = useDeleteProduct()
-  const updateProduct = useUpdateProduct()
 
-  const handleEdit = () => {
-    router.push(`/products/${id}/edit`)
-  }
+  // Stats data - always call hooks before any returns
+  const stats = useMemo(() => {
+    if (!product) return []
+    
 
-  const handleDelete = async () => {
-    try {
-      await deleteProduct.mutateAsync(id)
-      showSuccess('Product deleted successfully')
-      router.push('/products')
-    } catch (error) {
-      showError('Failed to delete product')
-    }
-  }
+    const totalOptions = options?.length || 0
+    const activeOptions = options?.filter(o => o.is_active).length || 0
+    const totalImages = (product.media as any[])?.length || 0
+    const hasTags = (product.tags as any[])?.length || 0
 
-  const handleFieldUpdate = async (field: string, value: any) => {
-    try {
-      await updateProduct.mutateAsync({
-        id,
-        data: { [field]: value }
-      })
-      showSuccess('Product updated successfully')
-    } catch (error) {
-      showError('Failed to update product')
-      throw error
-    }
-  }
-
-  const handleLocationUpdate = async (locationField: string, value: any) => {
-    try {
-      const updatedLocation = {
-        ...product?.location,
-        [locationField]: value
-      }
-      await updateProduct.mutateAsync({
-        id,
-        data: { location: updatedLocation }
-      })
-      showSuccess('Location updated successfully')
-    } catch (error) {
-      showError('Failed to update location')
-      throw error
-    }
-  }
-
-  const handleTagsUpdate = async (tags: string[]) => {
-    try {
-      await updateProduct.mutateAsync({
-        id,
-        data: { tags }
-      })
-      showSuccess('Tags updated successfully')
-    } catch (error) {
-      showError('Failed to update tags')
-      throw error
-    }
-  }
-
-  const handleAttributeUpdate = async (attributeField: string, value: any) => {
-    try {
-      const updatedAttributes = {
-        ...product?.attributes,
-        [attributeField]: value
-      }
-      await updateProduct.mutateAsync({
-        id,
-        data: { attributes: updatedAttributes }
-      })
-      showSuccess('Attribute updated successfully')
-    } catch (error) {
-      showError('Failed to update attribute')
-      throw error
-    }
-  }
-
-  const getProductTypeIcon = (typeName: string) => {
-    switch (typeName?.toLowerCase()) {
-      case 'accommodation':
-        return <Star className="h-5 w-5" />
-      case 'event':
-      case 'tickets & passes':
-        return <Ticket className="h-5 w-5" />
-      case 'activity':
-      case 'activities & experiences':
-        return <Clock className="h-5 w-5" />
-      case 'transfer':
-      case 'transfers':
-        return <Car className="h-5 w-5" />
-      case 'package':
-        return <Package className="h-5 w-5" />
-      case 'extras & add-ons':
-        return <Package className="h-5 w-5" />
-      default:
-        return <Package className="h-5 w-5" />
-    }
-  }
-
-  const getProductTypeColor = (typeName: string) => {
-    switch (typeName?.toLowerCase()) {
-      case 'accommodation':
-        return 'bg-blue-100 text-blue-800'
-      case 'event':
-      case 'tickets & passes':
-        return 'bg-purple-100 text-purple-800'
-      case 'activity':
-      case 'activities & experiences':
-        return 'bg-green-100 text-green-800'
-      case 'transfer':
-      case 'transfers':
-        return 'bg-orange-100 text-orange-800'
-      case 'package':
-        return 'bg-pink-100 text-pink-800'
-      case 'extras & add-ons':
-        return 'bg-indigo-100 text-indigo-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  if (error || !product) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold">Product Not Found</h3>
-          <p className="text-muted-foreground">The requested product could not be found.</p>
-          <Button onClick={() => router.push('/products')} className="mt-4">
-            Back to Products
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  const stats = [
+    return [
     {
       id: 'options',
       label: 'Product Options',
-      value: product.product_options?.length || 0,
-      icon: <Package className="h-4 w-4" />
-    },
-    {
-      id: 'rates',
-      label: 'Selling Rates',
-      value: product.selling_rates?.length || 0,
-      icon: <Star className="h-4 w-4" />
+        value: totalOptions.toString(),
+        icon: <Layers className="h-4 w-4" />,
+        trend: {
+          value: `${activeOptions} active`,
+          direction: 'neutral' as const
+        }
+      },
+      {
+        id: 'images',
+        label: 'Images',
+        value: totalImages.toString(),
+        icon: <ImageIcon className="h-4 w-4" />,
+        trend: {
+          value: `${totalImages} / 5 max`,
+          direction: 'neutral' as const
+        }
     },
     {
       id: 'tags',
       label: 'Tags',
-      value: product.attributes?.tags?.length || 0,
+        value: hasTags.toString(),
       icon: <Tag className="h-4 w-4" />
     },
     {
-      id: 'status',
-      label: 'Status',
-      value: product.is_active ? 'Active' : 'Inactive',
-      icon: <Globe className="h-4 w-4" />
+        id: 'updated',
+        label: 'Last Updated',
+        value: formatDate(product.updated_at),
+        icon: <Calendar className="h-4 w-4" />
+      }
+    ]
+  }, [options, product])
+
+  // Define DataTable columns for product options - always define before returns
+  const optionColumns: DataTableColumn<ProductOption>[] = useMemo(() => [
+    {
+      key: 'image',
+      header: 'Image',
+      width: 'w-[80px]',
+      render: (item) => {
+        const images = (item.attributes as any)?.images || []
+        const primaryImage = images.find((img: any) => img.is_primary) || images[0]
+        
+        return primaryImage ? (
+          <div className="w-14 h-14 rounded overflow-hidden bg-muted">
+            <img 
+              src={primaryImage.url} 
+              alt={primaryImage.alt || 'Option'} 
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : (
+          <div className="w-14 h-14 rounded bg-muted flex items-center justify-center">
+            <Package className="h-5 w-5 text-muted-foreground" />
+          </div>
+        )
+      }
+    },
+    {
+      key: 'option_name',
+      header: 'Option Name',
+      width: 'w-[250px]',
+      render: (item) => (
+        <div className="flex flex-col">
+          <span className="font-medium">{item.option_name}</span>
+          <span className="text-xs text-muted-foreground">{item.option_code}</span>
+      </div>
+    )
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      render: (item) => (
+        <span className="text-sm line-clamp-2">{item.description || '—'}</span>
+      )
+    },
+    {
+      key: 'standard_occupancy',
+      header: 'Occupancy',
+      width: 'w-[120px]',
+      render: (item) => (
+        <div className="text-sm text-center">
+          <span className="font-medium">{item.standard_occupancy}</span>
+          {item.max_occupancy && (
+            <span className="text-muted-foreground"> / {item.max_occupancy}</span>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'is_active',
+      header: 'Status',
+      width: 'w-[100px]',
+      render: (item) => (
+        <div className="flex justify-center">
+          {item.is_active ? (
+            <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>
+          ) : (
+            <Badge variant="secondary">Inactive</Badge>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      width: 'w-[100px]',
+      render: (item) => (
+        <div className="flex justify-end gap-1">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              // TODO: Open edit dialog
+            }}
+          >
+            <Edit className="h-3 w-3" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              // TODO: Open more options
+            }}
+          >
+            <MoreHorizontal className="h-3 w-3" />
+          </Button>
+        </div>
+      )
     }
-  ]
+  ], [])
+
+  const handleDeleteProduct = async () => {
+    try {
+      await deleteProduct.mutateAsync(productId)
+      router.push('/products')
+    } catch (error) {
+      console.error('Error deleting product:', error)
+    }
+  }
+
+  // Loading state - moved after all hooks
+  if (productLoading) {
+    return <PageSkeleton />
+  }
+
+  if (!product) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] gap-2">
+        <Package className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Product not found</h2>
+        <Button onClick={() => router.push('/products')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Products
+        </Button>
+      </div>
+    )
+  }
+
+  const { product_type, location, attributes } = product
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
+      {/* Page Header */}
       <PageHeader
-        title={product.name}
-        description={product.description || 'Product details'}
+        title={
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3">
+              <ProductInlineEdit
+                product={product}
+                field="name"
+                label="Product Name"
+                placeholder="Enter product name"
+                className="text-2xl font-bold"
+                emptyValue="Unnamed Product"
+                size="sm"
+              />
+              
+              {/* Product Type Badge */}
+              {product_type && (
+                <Badge>
+                  <span className="flex items-center gap-1">
+                    {getProductTypeIcon(product_type.type_name)}
+                    {product_type.type_name}
+                  </span>
+                </Badge>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium">Code:</span>
+                <ProductInlineEdit
+                  product={product}
+                  field="code"
+                  label="Product Code"
+                  placeholder="Enter product code"
+                  className="text-muted-foreground font-mono text-xs"
+                  emptyValue="No code"
+                  size="sm"
+                  variant="minimal"
+                />
+              </div>
+              
+              {location?.city && (
+                <div className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  <span>{location.city}, {location.country}</span>
+                </div>
+              )}
+              
+              <ProductStatusEdit product={product} />
+            </div>
+          </div>
+        }
         backButton={{
-          onClick: () => router.push('/products'),
-          label: 'Back to Products'
+          onClick: () => router.back(),
+          label: "Back"
         }}
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleEdit}>
-              Edit
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete
-            </Button>
-          </div>
+          <ActionButtons
+            onDelete={() => setShowDeleteDialog(true)}
+            onDuplicate={() => {
+              console.log("Duplicate product")
+            }}
+            onExport={() => {
+              console.log("Export product data")
+            }}
+            onShare={() => {
+              console.log("Share product")
+            }}
+            showEdit={false}
+            showDelete={true}
+            showDuplicate={true}
+            showExport={true}
+            showShare={true}
+            size="sm"
+            variant="compact"
+          />
         }
       />
 
       {/* Stats Grid */}
       <StatsGrid stats={stats} columns={4} />
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
+      {/* Main Layout: Content + Sidebar */}
+      <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
+        {/* Main Content Area */}
+        <div className="space-y-4">
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid grid-cols-4 mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="options">Options</TabsTrigger>
-          <TabsTrigger value="rates">Selling Rates</TabsTrigger>
+              <TabsTrigger value="selling-rates">Selling Rates</TabsTrigger>
           <TabsTrigger value="allocations">Allocations</TabsTrigger>
         </TabsList>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Basic Information */}
-            <InfoCard
-              title="Basic Information"
-              icon={<Package className="h-4 w-4" />}
-            >
+            <TabsContent value="overview" className="space-y-4">
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">
+                  <div className="text-4xl mb-2">📊</div>
+                  <h3 className="text-lg font-medium">Product Overview</h3>
+                  <p className="text-sm">General product information and details</p>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="options" className="space-y-4">
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">Product Name</span>
-                  <InlineTextEdit
-                    value={product.name}
-                    onSave={(value) => handleFieldUpdate('name', value)}
-                    placeholder="Enter product name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">Product Code</span>
-                  <InlineTextEdit
-                    value={product.code}
-                    onSave={(value) => handleFieldUpdate('code', value)}
-                    placeholder="Enter product code"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">Product Type</span>
-                  <div className="flex items-center gap-2">
-                    {getProductTypeIcon(product.product_type?.type_name || '')}
-                    <Badge className={getProductTypeColor(product.product_type?.type_name || '')}>
-                      {product.product_type?.type_name || 'Unknown'}
-                    </Badge>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                      <Layers className="h-5 w-5" />
+                      Product Options
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Manage room types, ticket categories, and product variants
+                    </p>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">Description</span>
-                  <InlineTextareaEdit
-                    value={product.description || ''}
-                    onSave={(value) => handleFieldUpdate('description', value)}
-                    placeholder="Enter product description"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">Status</span>
-                  <InlineSelectEdit
-                    value={product.is_active ? 'active' : 'inactive'}
-                    options={[
-                      { value: 'active', label: 'Active' },
-                      { value: 'inactive', label: 'Inactive' }
-                    ]}
-                    onSave={(value) => handleFieldUpdate('is_active', value === 'active')}
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm font-medium text-muted-foreground">Created</span>
-                  <span className="text-sm">{format(new Date(product.created_at), 'MMM dd, yyyy')}</span>
-                </div>
-              </div>
-            </InfoCard>
-
-            {/* Location Information */}
-            <InfoCard
-              title="Location"
-              icon={<MapPin className="h-4 w-4" />}
-            >
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">City</span>
-                  <InlineTextEdit
-                    value={product.location?.city || ''}
-                    onSave={(value) => handleLocationUpdate('city', value)}
-                    placeholder="Enter city"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">Country</span>
-                  <InlineTextEdit
-                    value={product.location?.country || ''}
-                    onSave={(value) => handleLocationUpdate('country', value)}
-                    placeholder="Enter country"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">Address</span>
-                  <InlineTextEdit
-                    value={product.location?.address || ''}
-                    onSave={(value) => handleLocationUpdate('address', value)}
-                    placeholder="Enter address"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <span className="text-sm font-medium text-muted-foreground">Latitude</span>
-                    <InlineTextEdit
-                      value={product.location?.lat?.toString() || ''}
-                      onSave={(value) => handleLocationUpdate('lat', parseFloat(value) || null)}
-                      placeholder="Latitude"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <span className="text-sm font-medium text-muted-foreground">Longitude</span>
-                    <InlineTextEdit
-                      value={product.location?.lng?.toString() || ''}
-                      onSave={(value) => handleLocationUpdate('lng', parseFloat(value) || null)}
-                      placeholder="Longitude"
-                    />
-                  </div>
-                </div>
-              </div>
-            </InfoCard>
-          </div>
-
-          {/* Product Attributes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {getProductTypeIcon(product.product_type?.type_name || '')}
-                Product Attributes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Accommodation specific attributes */}
-                {product.product_type?.type_name?.toLowerCase() === 'accommodation' && (
-                  <>
-                    {product.attributes?.star_rating && (
-                      <div className="flex items-center gap-2">
-                        <Star className="h-4 w-4 fill-yellow-400" />
-                        <span className="font-medium">Star Rating:</span>
-                        <span>{product.attributes.star_rating} stars</span>
-                      </div>
-                    )}
-                    {product.attributes?.check_in_time && (
-                      <div>
-                        <span className="font-medium">Check-in:</span>
-                        <span className="ml-2">{product.attributes.check_in_time}</span>
-                      </div>
-                    )}
-                    {product.attributes?.check_out_time && (
-                      <div>
-                        <span className="font-medium">Check-out:</span>
-                        <span className="ml-2">{product.attributes.check_out_time}</span>
-                      </div>
-                    )}
-                    {product.attributes?.amenities && product.attributes.amenities.length > 0 && (
-                      <div className="col-span-full">
-                        <span className="font-medium">Amenities:</span>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {product.attributes.amenities.map((amenity, index) => (
-                            <Badge key={index} variant="secondary">
-                              {amenity}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Event specific attributes */}
-                {(product.product_type?.type_name?.toLowerCase() === 'event' || product.product_type?.type_name?.toLowerCase() === 'tickets & passes') && (
-                  <>
-                    {product.attributes?.event_date && (
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        <span className="font-medium">Event Date:</span>
-                        <span>{format(new Date(product.attributes.event_date), 'MMM dd, yyyy')}</span>
-                      </div>
-                    )}
-                    {product.attributes?.venue && (
-                      <div>
-                        <span className="font-medium">Venue:</span>
-                        <span className="ml-2">{product.attributes.venue}</span>
-                      </div>
-                    )}
-                    {product.attributes?.gates_open_time && (
-                      <div>
-                        <span className="font-medium">Gates Open:</span>
-                        <span className="ml-2">{product.attributes.gates_open_time}</span>
-                      </div>
-                    )}
-                    {product.attributes?.event_type && (
-                      <div>
-                        <span className="font-medium">Event Type:</span>
-                        <span className="ml-2">{product.attributes.event_type}</span>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Activity specific attributes */}
-                {(product.product_type?.type_name?.toLowerCase() === 'activity' || product.product_type?.type_name?.toLowerCase() === 'activities & experiences') && (
-                  <>
-                    {product.attributes?.duration_hours && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        <span className="font-medium">Duration:</span>
-                        <span>{product.attributes.duration_hours} hours</span>
-                      </div>
-                    )}
-                    {product.attributes?.meeting_point && (
-                      <div>
-                        <span className="font-medium">Meeting Point:</span>
-                        <span className="ml-2">{product.attributes.meeting_point}</span>
-                      </div>
-                    )}
-                    {product.attributes?.difficulty_level && (
-                      <div>
-                        <span className="font-medium">Difficulty:</span>
-                        <span className="ml-2 capitalize">{product.attributes.difficulty_level}</span>
-                      </div>
-                    )}
-                    {product.attributes?.inclusions && product.attributes.inclusions.length > 0 && (
-                      <div className="col-span-full">
-                        <span className="font-medium">Inclusions:</span>
-                        <ul className="list-disc list-inside mt-2 space-y-1">
-                          {product.attributes.inclusions.map((inclusion, index) => (
-                            <li key={index} className="text-sm text-muted-foreground">
-                              {inclusion}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Transfer specific attributes */}
-                {(product.product_type?.type_name?.toLowerCase() === 'transfer' || product.product_type?.type_name?.toLowerCase() === 'transfers') && (
-                  <>
-                    {product.attributes?.vehicle_type && (
-                      <div className="flex items-center gap-2">
-                        <Car className="h-4 w-4" />
-                        <span className="font-medium">Vehicle:</span>
-                        <span>{product.attributes.vehicle_type}</span>
-                      </div>
-                    )}
-                    {product.attributes?.route && (
-                      <div>
-                        <span className="font-medium">Route:</span>
-                        <span className="ml-2">{product.attributes.route}</span>
-                      </div>
-                    )}
-                    {product.attributes?.luggage_allowance && (
-                      <div>
-                        <span className="font-medium">Luggage:</span>
-                        <span className="ml-2">{product.attributes.luggage_allowance}</span>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Package specific attributes */}
-                {product.product_type?.type_name?.toLowerCase() === 'package' && (
-                  <>
-                    {product.attributes?.package_type && (
-                      <div>
-                        <span className="font-medium">Package Type:</span>
-                        <span className="ml-2">{product.attributes.package_type}</span>
-                      </div>
-                    )}
-                    {product.attributes?.duration_nights && (
-                      <div>
-                        <span className="font-medium">Duration:</span>
-                        <span className="ml-2">{product.attributes.duration_nights} nights</span>
-                      </div>
-                    )}
-                    {product.attributes?.min_guests && (
-                      <div>
-                        <span className="font-medium">Min Guests:</span>
-                        <span className="ml-2">{product.attributes.min_guests}</span>
-                      </div>
-                    )}
-                    {product.attributes?.max_guests && (
-                      <div>
-                        <span className="font-medium">Max Guests:</span>
-                        <span className="ml-2">{product.attributes.max_guests}</span>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Extras & Add-ons specific attributes */}
-                {product.product_type?.type_name?.toLowerCase() === 'extras & add-ons' && (
-                  <>
-                    {product.attributes?.extra_category && (
-                      <div>
-                        <span className="font-medium">Category:</span>
-                        <span className="ml-2">{product.attributes.extra_category}</span>
-                      </div>
-                    )}
-                    {product.attributes?.description && (
-                      <div className="col-span-full">
-                        <span className="font-medium">Description:</span>
-                        <p className="ml-2 text-sm text-muted-foreground">{product.attributes.description}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Common attributes */}
-                {product.attributes?.tags && product.attributes.tags.length > 0 && (
-                  <div className="col-span-full">
-                    <span className="font-medium">Tags:</span>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {product.attributes.tags.map((tag, index) => (
-                        <Badge key={index} variant="outline">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Tags Editor */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Tag className="h-5 w-5" />
-                Tags
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TagsEditor
-                tags={product.tags || []}
-                onChange={handleTagsUpdate}
-                placeholder="Add a tag"
-                maxTags={20}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Activity Log */}
-          <ActivityLog
-            activities={[]} // TODO: Implement activity log data
-            maxHeight="300px"
-          />
-        </TabsContent>
-
-        {/* Options Tab */}
-        <TabsContent value="options" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Product Options</CardTitle>
-                <Button onClick={() => router.push(`/products/${id}/options`)}>
-                  Manage Options
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {product.product_options && product.product_options.length > 0 ? (
-                <div className="space-y-4">
-                  {product.product_options.map((option) => (
-                    <div key={option.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">{option.option_name}</h4>
-                          <p className="text-sm text-muted-foreground">{option.option_code}</p>
-                        </div>
-                        <Badge variant={option.is_active ? 'default' : 'secondary'}>
-                          {option.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="font-medium">Standard Occupancy:</span>
-                          <span className="ml-2">{option.standard_occupancy}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium">Max Occupancy:</span>
-                          <span className="ml-2">{option.max_occupancy}</span>
-                        </div>
-                        {option.bed_configuration && (
-                          <div className="col-span-2">
-                            <span className="font-medium">Bed Configuration:</span>
-                            <span className="ml-2">{option.bed_configuration}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold">No Product Options</h3>
-                  <p className="text-muted-foreground">This product doesn't have any options yet.</p>
-                  <Button 
-                    onClick={() => router.push(`/products/${id}/options`)}
-                    className="mt-4"
-                  >
-                    Add Options
+                  <Button size="sm" onClick={() => setShowAddOptionDialog(true)}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Option
                   </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        {/* Selling Rates Tab */}
-        <TabsContent value="rates" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Selling Rates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {product.selling_rates && product.selling_rates.length > 0 ? (
-                <div className="space-y-4">
-                  {product.selling_rates.map((rate) => (
-                    <div key={rate.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">{rate.rate_name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {rate.valid_from} - {rate.valid_to}
-                          </p>
-                        </div>
-                        <Badge variant={rate.is_active ? 'default' : 'secondary'}>
-                          {rate.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="font-medium">Rate Basis:</span>
-                          <span className="ml-2">{rate.rate_basis}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium">Customer Type:</span>
-                          <span className="ml-2">{rate.customer_type}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium">Markup Type:</span>
-                          <span className="ml-2">{rate.markup_type}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium">Markup Value:</span>
-                          <span className="ml-2">{rate.markup_value}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <OptionsTable
+                  options={options as any}
+                  productType={product.product_type?.type_name?.toLowerCase() || 'accommodation'}
+                  onEdit={(option) => setEditingOption(option as any)}
+                  />
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Star className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold">No Selling Rates</h3>
-                  <p className="text-muted-foreground">This product doesn't have any selling rates yet.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Allocations Tab */}
-        <TabsContent value="allocations" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Contract Allocations</CardTitle>
-            </CardHeader>
-            <CardContent>
+            </TabsContent>
+            
+            <TabsContent value="selling-rates" className="space-y-4">
               <div className="text-center py-8">
-                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold">No Allocations Yet</h3>
-                <p className="text-muted-foreground">
-                  Contract allocations will appear here when contracts are linked to this product.
-                </p>
+                <div className="text-muted-foreground">
+                  <div className="text-4xl mb-2">💰</div>
+                  <h3 className="text-lg font-medium">Selling Rates</h3>
+                  <p className="text-sm">Customer-facing pricing and rates</p>
+                  </div>
+                </div>
+            </TabsContent>
+            
+            <TabsContent value="allocations" className="space-y-4">
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">
+                  <div className="text-4xl mb-2">📦</div>
+                  <h3 className="text-lg font-medium">Contract Allocations</h3>
+                  <p className="text-sm">Inventory and allocation management</p>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* Sidebar */}
+        <div className="lg:sticky lg:top-6 h-fit">
+          <SideCard
+            sections={[
+              // General Information Section
+              {
+                id: 'general-info',
+                title: 'General Information',
+                icon: <Package className="h-4 w-4" />,
+                defaultOpen: true,
+                content: (
+                  <div className="space-y-2.5">
+                    <DetailRow
+                      label="Product Name"
+                      value={
+                        <ProductInlineEdit
+                          product={product}
+                          field="name"
+                          label="Product Name"
+                          placeholder="Enter product name"
+                          className="text-sm font-medium"
+                          emptyValue="No name"
+                          size="sm"
+                          variant="underline"
+                        />
+                      }
+                      variant="compact"
+                    />
+                    
+                    <DetailRow
+                      label="Product Code"
+                      value={
+                        <ProductInlineEdit
+                          product={product}
+                          field="code"
+                          label="Product Code"
+                    placeholder="Enter product code"
+                          className="text-sm font-medium font-mono"
+                          emptyValue="No code"
+                          size="sm"
+                          variant="underline"
+                        />
+                      }
+                      variant="compact"
+                    />
+                    
+                    <DetailRow
+                      label="Description"
+                      value={
+                        <ProductInlineEdit
+                          product={product}
+                          field="description"
+                          label="Description"
+                    placeholder="Enter product description"
+                          className="text-sm"
+                          multiline
+                          emptyValue="No description"
+                          size="sm"
+                          variant="underline"
+                        />
+                      }
+                      variant="compact"
+                    />
+
+                    
+
+                    
+                    <DetailRow
+                      label="City"
+                      value={
+                        <ProductLocationEdit
+                          product={product}
+                          field="location"
+                          nestedField="city"
+                          label="City"
+                    placeholder="Enter city"
+                          className="text-sm font-medium"
+                          emptyValue="Not specified"
+                          size="sm"
+                          variant="underline"
+                        />
+                      }
+                      variant="compact"
+                    />
+                    
+                    <DetailRow
+                      label="Country"
+                      value={
+                        <ProductLocationEdit
+                          product={product}
+                          field="location"
+                          nestedField="country"
+                          label="Country"
+                    placeholder="Enter country"
+                          className="text-sm font-medium"
+                          emptyValue="Not specified"
+                          size="sm"
+                          variant="underline"
+                        />
+                      }
+                      variant="compact"
+                    />
+                    
+                    <DetailRow
+                      label="Address"
+                      value={
+                        <ProductLocationEdit
+                          product={product}
+                          field="location"
+                          nestedField="address"
+                          label="Address"
+                          placeholder="Enter full address"
+                          className="text-sm"
+                          multiline
+                          emptyValue="No address"
+                          size="sm"
+                          variant="underline"
+                        />
+                      }
+                      variant="compact"
+                    />
+                  </div>
+                )
+              },
+              
+              // Product Details & Tags Section
+              {
+                id: 'product-details',
+                title: 'Product Details',
+                icon: getProductTypeIcon(product_type?.type_name || ''),
+                defaultOpen: true,
+                content: (
+                  <div className="space-y-3">
+                    {/* Tags */}
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-1.5">Tags</div>
+                      <ProductTagsEdit product={product} />
+          </div>
+
+                    {/* Attributes */}
+                    {attributes && Object.keys(attributes).length > 0 && (
+                      <>
+                        <div className="border-t border-border"></div>
+                        
+                        <div className="space-y-2.5">
+                          {/* Accommodation Attributes */}
+                          {(product_type?.type_name?.toLowerCase() === 'accommodation' || product_type?.type_name?.toLowerCase().includes('hotel')) && (
+                            <>
+                              <DetailRow
+                                label="Star Rating"
+                                value={
+                                  <ProductStarRatingEdit
+                                    product={product}
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Property Type"
+                                value={
+                                  <ProductAttributeSelect
+                                    product={product}
+                                    attributeField="property_type"
+                                    label="Property Type"
+                                    options={ACCOMMODATION_PROPERTY_TYPES}
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Check-in"
+                                value={
+                                  <ProductAttributeEdit
+                                    product={product}
+                                    field="attributes"
+                                    nestedField="check_in_time"
+                                    label="Check-in Time"
+                                    placeholder="e.g., 14:00"
+                                    className="text-sm"
+                                    emptyValue="Not set"
+                                    size="sm"
+                                    variant="underline"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Check-out"
+                                value={
+                                  <ProductAttributeEdit
+                                    product={product}
+                                    field="attributes"
+                                    nestedField="check_out_time"
+                                    label="Check-out Time"
+                                    placeholder="e.g., 11:00"
+                                    className="text-sm"
+                                    emptyValue="Not set"
+                                    size="sm"
+                                    variant="underline"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Amenities"
+                                value={
+                                  <ProductAttributeMultiSelect
+                                    product={product}
+                                    attributeField="amenities"
+                                    label="Amenities"
+                                    options={ACCOMMODATION_AMENITIES}
+                                    emptyValue="None selected"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                  </>
+                )}
+
+                          {/* Event/Tickets Attributes */}
+                          {(product_type?.type_name?.toLowerCase() === 'event' || product_type?.type_name?.toLowerCase().includes('ticket')) && (
+                            <>
+                              <DetailRow
+                                label="Event Name"
+                                value={
+                                  <ProductAttributeEdit
+                                    product={product}
+                                    field="attributes"
+                                    nestedField="event_name"
+                                    label="Event Name"
+                                    placeholder="Enter event name"
+                                    className="text-sm"
+                                    emptyValue="Not set"
+                                    size="sm"
+                                    variant="underline"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Category"
+                                value={
+                                  <ProductAttributeSelect
+                                    product={product}
+                                    attributeField="event_category"
+                                    label="Event Category"
+                                    options={EVENT_CATEGORIES}
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Event Status"
+                                value={
+                                  <ProductAttributeSelect
+                                    product={product}
+                                    attributeField="event_status"
+                                    label="Event Status"
+                                    options={EVENT_STATUSES}
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                  </>
+                )}
+
+                          {/* Activity Attributes */}
+                          {(product_type?.type_name?.toLowerCase() === 'activity' || product_type?.type_name?.toLowerCase().includes('activity')) && (
+                            <>
+                              <DetailRow
+                                label="Duration"
+                                value={
+                                  <ProductAttributeNumber
+                                    product={product}
+                                    attributeField="duration_hours"
+                                    label="Duration (hours)"
+                                    min={0}
+                                    max={240}
+                                    step={0.5}
+                                    suffix="hours"
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Difficulty"
+                                value={
+                                  <ProductAttributeSelect
+                                    product={product}
+                                    attributeField="difficulty_level"
+                                    label="Difficulty Level"
+                                    options={ACTIVITY_DIFFICULTY_LEVELS}
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Group Type"
+                                value={
+                                  <ProductAttributeSelect
+                                    product={product}
+                                    attributeField="group_type"
+                                    label="Group Type"
+                                    options={ACTIVITY_GROUP_TYPES}
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                  </>
+                )}
+
+                          {/* Transfer Attributes */}
+                          {(product_type?.type_name?.toLowerCase() === 'transfer' || product_type?.type_name?.toLowerCase().includes('transfer')) && (
+                            <DetailRow
+                              label="Transfer Type"
+                              value={
+                                <ProductAttributeSelect
+                                  product={product}
+                                  attributeField="transfer_type"
+                                  label="Transfer Type"
+                                  options={TRANSFER_TYPES}
+                                  emptyValue="Not set"
+                                  size="sm"
+                                />
+                              }
+                              variant="compact"
+                            />
+                )}
+                      </div>
+                  </>
+                )}
+                      </div>
+                )
+              },
+              
+              // Images Section
+              {
+                id: 'images',
+                title: 'Images',
+                icon: <ImageIcon className="h-4 w-4" />,
+                defaultOpen: true,
+                content: <ProductImagesInlineEdit product={product} />
+              }
+            ]}
+          />
+                    </div>
+                  </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Product"
+        description={`Are you sure you want to delete "${product.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDeleteProduct}
+        variant="destructive"
+      />
+
+      {/* Add Product Option Dialog - REMOVED - Using type-specific forms instead */}
+
+      {/* Type-specific option forms */}
+      {product.product_type?.type_name?.toLowerCase() === 'accommodation' && (
+        <AccommodationOptionForm
+          open={showAddOptionDialog || !!editingOption}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowAddOptionDialog(false)
+              setEditingOption(null)
+            }
+          }}
+          productId={productId}
+          option={editingOption as any}
+        />
+      )}
+      
+      {product.product_type?.type_name?.toLowerCase() === 'event' && (
+        <EventOptionForm
+          open={showAddOptionDialog || !!editingOption}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowAddOptionDialog(false)
+              setEditingOption(null)
+            }
+          }}
+          productId={productId}
+          option={editingOption as any}
+        />
+      )}
     </div>
   )
 }
