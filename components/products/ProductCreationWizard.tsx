@@ -1,592 +1,1385 @@
-"use client";
+"use client"
 
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Check, ChevronsUpDown, Hotel, Activity, Car, Package } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-
-// Product templates with opinionated defaults
-const PRODUCT_TEMPLATES = [
-  {
-    id: "hotel",
-    name: "3-Star Hotel Room",
-    description: "Standard hotel accommodation with flexible room types",
-    icon: Hotel,
-    color: "bg-blue-500",
-    suggestedMargin: 0.20,
-    defaultSettings: {
-      inventoryModel: "committed",
-      pricingModel: "per_person",
-      channels: ["direct", "agent"],
-      markets: ["all"],
-      cancellationPolicy: {
-        noticePeriod: { days: 30, type: "calendar" },
-        penalties: {
-          earlyTermination: { percentage: 10, minimumAmount: 50, currency: "GBP" }
-        }
-      }
-    }
-  },
-  {
-    id: "activity",
-    name: "Full-Day Activity",
-    description: "Day-long tour or activity with group pricing",
-    icon: Activity,
-    color: "bg-green-500",
-    suggestedMargin: 0.30,
-    defaultSettings: {
-      inventoryModel: "committed",
-      pricingModel: "per_person",
-      channels: ["direct", "agent"],
-      markets: ["all"]
-    }
-  },
-  {
-    id: "transfer",
-    name: "Airport Transfer",
-    description: "Point-to-point transportation service",
-    icon: Car,
-    color: "bg-purple-500",
-    suggestedMargin: 0.25,
-    defaultSettings: {
-      inventoryModel: "freesale",
-      pricingModel: "per_person",
-      channels: ["direct", "agent"],
-      markets: ["all"]
-    }
-  }
-];
+import React, { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { productSchema, type ProductFormData } from '@/lib/validations/product.schema'
+import { useProductTypes } from '@/lib/hooks/useProducts'
+import { EventToast, showSuccess, showError } from '@/components/common/EventToast'
+import { ImageUpload } from '@/components/common/ImageUpload'
+import { 
+  Star, 
+  Calendar, 
+  Clock, 
+  Car, 
+  Ticket, 
+  MapPin, 
+  Tag, 
+  Image as ImageIcon,
+  CheckCircle,
+  ArrowLeft,
+  ArrowRight,
+  Package,
+  Building,
+  Users,
+  Utensils,
+  Wifi,
+  Waves,
+  Dumbbell,
+  Coffee
+} from 'lucide-react'
+import type { ProductType, ProductTypeCode } from '@/lib/types/product'
 
 interface ProductCreationWizardProps {
-  onComplete: (productData: any) => void;
-  onCancel: () => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSubmit: (data: ProductFormData) => void
+  isLoading?: boolean
 }
 
-export function ProductCreationWizard({ onComplete, onCancel }: ProductCreationWizardProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [formData, setFormData] = useState<any>({
-    // Basic info
-    name: "",
-    supplier: "",
-    supplierId: null,
-    
-    // Pricing
-    costPerPerson: "",
-    pricePerPerson: "",
-    
-    // Availability
-    availabilityType: "fixed", // fixed, unlimited, on-request
-    quantity: "",
-    startDate: null,
-    endDate: null,
-    
-    // Room-specific (for hotels)
-    roomTypes: [],
-    
-    // Advanced (hidden by default)
-    advancedSettings: {
-      inventoryModel: "committed",
-      pricingModel: "per_person",
-      currency: "GBP",
-      channels: ["direct", "agent"],
-      markets: ["all"]
+  const productTypeInfo = {
+    accommodation: {
+      icon: Star,
+      title: 'Accommodation',
+      description: 'Hotels, resorts, hostels, and other lodging options',
+      color: 'bg-blue-100 text-blue-800 border-blue-200'
+    },
+    event: {
+      icon: Ticket,
+      title: 'Event',
+      description: 'Concerts, festivals, shows, and special events',
+      color: 'bg-purple-100 text-purple-800 border-purple-200'
+    },
+    'tickets & passes': {
+      icon: Ticket,
+      title: 'Event',
+      description: 'Events, concerts, festivals, and special occasions',
+      color: 'bg-purple-100 text-purple-800 border-purple-200'
+    },
+    activity: {
+      icon: Clock,
+      title: 'Activity',
+      description: 'Tours, excursions, and experiential activities',
+      color: 'bg-green-100 text-green-800 border-green-200'
+    },
+    'activities & experiences': {
+      icon: Clock,
+      title: 'Activities & Experiences',
+      description: 'Tours, excursions, and experiential activities',
+      color: 'bg-green-100 text-green-800 border-green-200'
+    },
+    transfer: {
+      icon: Car,
+      title: 'Transfer',
+      description: 'Transportation services between locations',
+      color: 'bg-orange-100 text-orange-800 border-orange-200'
+    },
+    transfers: {
+      icon: Car,
+      title: 'Transfer',
+      description: 'Transportation services between locations',
+      color: 'bg-orange-100 text-orange-800 border-orange-200'
+    },
+    package: {
+      icon: Package,
+      title: 'Package',
+      description: 'Multi-component packages combining multiple services',
+      color: 'bg-pink-100 text-pink-800 border-pink-200'
+    },
+    'extras & add-ons': {
+      icon: Package,
+      title: 'Extras & Add-ons',
+      description: 'Additional services and extras to enhance experiences',
+      color: 'bg-indigo-100 text-indigo-800 border-indigo-200'
     }
-  });
+  }
 
-  const updateFormData = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+const amenityOptions = [
+  { value: 'wifi', label: 'WiFi', icon: Wifi },
+  { value: 'pool', label: 'Pool', icon: Waves },
+  { value: 'gym', label: 'Gym', icon: Dumbbell },
+  { value: 'restaurant', label: 'Restaurant', icon: Utensils },
+  { value: 'coffee', label: 'Coffee Shop', icon: Coffee },
+  { value: 'spa', label: 'Spa', icon: Star },
+  { value: 'parking', label: 'Parking', icon: Car },
+  { value: 'concierge', label: 'Concierge', icon: Users },
+  { value: 'room_service', label: 'Room Service', icon: Package },
+  { value: 'business_center', label: 'Business Center', icon: Building }
+]
 
-  const handleTemplateSelect = (templateId: string) => {
-    const template = PRODUCT_TEMPLATES.find(t => t.id === templateId);
-    if (template) {
-      setSelectedTemplate(templateId);
-      setFormData(prev => ({
-        ...prev,
-        advancedSettings: {
-          ...prev.advancedSettings,
-          ...template.defaultSettings
+export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading }: ProductCreationWizardProps) {
+  const [currentStep, setCurrentStep] = useState(1)
+  const [selectedProductType, setSelectedProductType] = useState<ProductType | null>(null)
+  const { data: productTypes } = useProductTypes()
+  
+  
+
+  const form = useForm<any>({
+    defaultValues: {
+      product_type_id: '',
+      name: '',
+      code: '',
+      description: '',
+      location: {
+        city: '',
+        country: '',
+        lat: undefined,
+        lng: undefined,
+        address: ''
+      },
+      attributes: {},
+      tags: [],
+      media: [],
+      is_active: true
+    }
+  })
+
+  // Reset form when dialog closes
+  React.useEffect(() => {
+    if (!open) {
+      setCurrentStep(1)
+      setSelectedProductType(null)
+      form.reset({
+        product_type_id: '',
+        name: '',
+        code: '',
+        description: '',
+        location: {
+          city: '',
+          country: '',
+          lat: undefined,
+          lng: undefined,
+          address: ''
+        },
+        attributes: {},
+        tags: [],
+        media: [],
+        is_active: true
+      })
+    }
+  }, [open, form])
+
+  const steps = [
+    { id: 1, title: 'Product Type', description: 'Select the type of product' },
+    { id: 2, title: 'Basic Info', description: 'Name, code, and description' },
+    { id: 3, title: 'Location', description: 'Where is this product located?' },
+    { id: 4, title: 'Attributes', description: 'Type-specific details' },
+    { id: 5, title: 'Images', description: 'Add product images' },
+    { id: 6, title: 'Review', description: 'Review and create' }
+  ]
+
+  const handleProductTypeSelect = (type: ProductType) => {
+    setSelectedProductType(type)
+    form.setValue('product_type_id', type.id)
+    setCurrentStep(2)
+  }
+
+  // Validation functions for each step
+  const validateStep1 = () => {
+    if (!selectedProductType) {
+      showError('Please select a product type to continue')
+      return false
+    }
+    return true
+  }
+
+  const validateStep2 = () => {
+    const name = form.getValues('name')
+    const code = form.getValues('code')
+    
+    if (!name || name.trim().length < 3) {
+      showError('Product name must be at least 3 characters long')
+      return false
+    }
+    
+    if (!code || code.trim().length < 2) {
+      showError('Product code must be at least 2 characters long')
+      return false
+    }
+    
+    return true
+  }
+
+  const validateStep3 = () => {
+    const city = form.getValues('location.city')
+    const country = form.getValues('location.country')
+    
+    if (!city || city.trim().length === 0) {
+      showError('City is required')
+      return false
+    }
+    
+    if (!country || country.trim().length === 0) {
+      showError('Country is required')
+      return false
+    }
+    
+    return true
+  }
+
+  const validateStep4 = () => {
+    if (!selectedProductType) {
+      showError('Please select a product type first')
+      return false
+    }
+
+    const typeName = selectedProductType.type_name?.toLowerCase()
+    
+    // Validate based on product type
+    switch (typeName) {
+      case 'accommodation':
+        const starRating = form.getValues('attributes.star_rating')
+        if (!starRating || starRating < 1 || starRating > 5) {
+          showError('Please select a valid star rating (1-5 stars)')
+          return false
         }
-      }));
+        break
+      case 'event':
+      case 'tickets & passes':
+        const eventName = form.getValues('attributes.event_name')
+        if (!eventName || eventName.trim().length === 0) {
+          showError('Name is required')
+          return false
+        }
+        break
+      case 'activity':
+      case 'activities & experiences':
+        const activityType = form.getValues('attributes.activity_type')
+        const durationHours = form.getValues('attributes.duration_hours')
+        const durationType = form.getValues('attributes.duration_type')
+        const difficultyLevel = form.getValues('attributes.difficulty_level')
+        const groupType = form.getValues('attributes.group_type')
+        const seasonality = form.getValues('attributes.seasonality')
+        const ageRestriction = form.getValues('attributes.age_restriction')
+        
+        if (!activityType) {
+          showError('Activity category is required')
+          return false
+        }
+        if (!durationHours || durationHours <= 0) {
+          showError('Duration in hours is required')
+          return false
+        }
+        if (!durationType) {
+          showError('Duration type is required')
+          return false
+        }
+        if (!difficultyLevel) {
+          showError('Difficulty level is required')
+          return false
+        }
+        if (!groupType) {
+          showError('Group type is required')
+          return false
+        }
+        if (!seasonality) {
+          showError('Seasonality is required')
+          return false
+        }
+        if (!ageRestriction) {
+          showError('Age restriction is required')
+          return false
+        }
+        break
+      case 'transfer':
+      case 'transfers':
+        const transferType = form.getValues('attributes.transfer_type')
+        if (!transferType) {
+          showError('Transfer type is required')
+          return false
+        }
+        break
+      case 'package':
+        const packageType = form.getValues('attributes.package_type')
+        const durationNights = form.getValues('attributes.duration_nights')
+        if (!packageType) {
+          showError('Package type is required')
+          return false
+        }
+        if (!durationNights || durationNights <= 0) {
+          showError('Duration in nights is required')
+          return false
+        }
+        break
+      case 'extras & add-ons':
+        const extraCategory = form.getValues('attributes.extra_category')
+        if (!extraCategory) {
+          showError('Extra category is required')
+          return false
+        }
+        break
     }
-  };
+    
+    return true
+  }
 
-  const calculateMargin = () => {
-    const cost = parseFloat(formData.costPerPerson) || 0;
-    const price = parseFloat(formData.pricePerPerson) || 0;
-    if (cost === 0) return 0;
-    return ((price - cost) / cost) * 100;
-  };
+  const validateStep5 = () => {
+    // Step 5 validation is optional as images can be empty
+    return true
+  }
 
-  const isStepValid = (step: number) => {
-    switch (step) {
+  const validateCurrentStep = () => {
+    switch (currentStep) {
       case 1:
-        return selectedTemplate && formData.name.trim() !== "";
+        return validateStep1()
       case 2:
-        return formData.supplier.trim() !== "" && 
-               formData.costPerPerson !== "" && 
-               formData.pricePerPerson !== "";
+        return validateStep2()
       case 3:
-        if (formData.availabilityType === "fixed") {
-          return formData.quantity !== "" && formData.startDate && formData.endDate;
-        }
-        return true;
+        return validateStep3()
+      case 4:
+        return validateStep4()
+      case 5:
+        return validateStep5()
       default:
-        return true;
+        return true
     }
-  };
+  }
 
-  const renderStep1 = () => (
+  const handleNext = () => {
+    if (validateCurrentStep()) {
+      if (currentStep < 6) {
+        setCurrentStep(currentStep + 1)
+        showSuccess(`Step ${currentStep + 1} completed!`)
+      }
+    }
+  }
+
+  const handlePrevious = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  const handleSubmit = (data: any) => {
+    // Final validation before submit
+    if (!validateStep1() || !validateStep2() || !validateStep3()) {
+      showError('Please complete all required fields before creating the product')
+      return
+    }
+    
+    // Clean up the data before submitting
+    const cleanedData = {
+      ...data,
+      location: {
+        ...data.location,
+        lat: data.location.lat && !isNaN(data.location.lat) ? data.location.lat : undefined,
+        lng: data.location.lng && !isNaN(data.location.lng) ? data.location.lng : undefined
+      }
+    }
+    
+    console.log('Wizard submitting data:', cleanedData)
+    onSubmit(cleanedData as ProductFormData)
+  }
+
+  const handleCancel = () => {
+    onOpenChange(false)
+  }
+
+  const addTag = () => {
+    const input = document.getElementById('tag-input') as HTMLInputElement
+    const newTag = input.value.trim()
+    if (newTag && !form.watch('tags')?.includes(newTag)) {
+      form.setValue('tags', [...(form.watch('tags') || []), newTag])
+      input.value = ''
+    }
+  }
+
+  const removeTag = (tagToRemove: string) => {
+    form.setValue('tags', form.watch('tags')?.filter((tag: any) => tag !== tagToRemove) || [])
+  }
+
+  const handleAmenityChange = (amenityValue: string, checked: boolean) => {
+    const currentAmenities = form.watch('attributes.amenities') || []
+    if (checked) {
+      form.setValue('attributes.amenities', [...currentAmenities, amenityValue])
+    } else {
+      form.setValue('attributes.amenities', currentAmenities.filter((a: string) => a !== amenityValue))
+    }
+  }
+
+  const renderProductTypeSelection = () => (
     <div className="space-y-6">
       <div className="text-center">
-        <h3 className="text-lg font-semibold mb-2">What type of product are you adding?</h3>
-        <p className="text-muted-foreground">Choose a template to get started quickly</p>
+        <h2 className="text-2xl font-bold mb-2">Select Product Type</h2>
+        <p className="text-muted-foreground">Choose the type of product you want to create</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {PRODUCT_TEMPLATES.map((template) => {
-          const Icon = template.icon;
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {productTypes?.map((type) => {
+          const typeInfo = productTypeInfo[type.type_name as keyof typeof productTypeInfo] || {
+            icon: Package,
+            title: type.type_name || 'Unknown',
+            description: 'Product type',
+            color: 'bg-gray-100 text-gray-800 border-gray-200'
+          }
+          const IconComponent = typeInfo.icon
+          
           return (
             <Card 
-              key={template.id}
-              className={cn(
-                "cursor-pointer transition-all hover:shadow-md",
-                selectedTemplate === template.id && "ring-2 ring-primary"
-              )}
-              onClick={() => handleTemplateSelect(template.id)}
+              key={type.id} 
+              className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-primary"
+              onClick={() => handleProductTypeSelect(type)}
             >
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-3">
-                  <div className={cn("p-2 rounded-lg", template.color)}>
-                    <Icon className="h-5 w-5 text-white" />
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-gray-100">
+                    <IconComponent className="h-6 w-6 text-gray-600" />
                   </div>
-                  <div>
-                    <CardTitle className="text-base">{template.name}</CardTitle>
-                    <CardDescription className="text-sm">
-                      {template.description}
-                    </CardDescription>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg">{typeInfo.title}</h3>
+                    <p className="text-sm text-muted-foreground">{typeInfo.description}</p>
+                    <Badge className={`mt-2 ${typeInfo.color}`}>
+                      {type.type_code}
+                    </Badge>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <Badge variant="secondary" className="text-xs">
-                  ~{Math.round(template.suggestedMargin * 100)}% margin
-                </Badge>
               </CardContent>
             </Card>
-          );
+          )
         })}
       </div>
-
-      {selectedTemplate && (
-        <div className="mt-6 p-4 bg-muted rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <Check className="h-4 w-4 text-green-600" />
-            <span className="font-medium">Template Selected</span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            This template includes recommended settings for {PRODUCT_TEMPLATES.find(t => t.id === selectedTemplate)?.name.toLowerCase()}.
-            You can customize these later in advanced settings.
-          </p>
-        </div>
-      )}
     </div>
-  );
+  )
 
-  const renderStep2 = () => (
+  const renderBasicInfo = () => (
     <div className="space-y-6">
       <div className="text-center">
-        <h3 className="text-lg font-semibold mb-2">Basic Information</h3>
-        <p className="text-muted-foreground">Tell us about your product</p>
+        <h2 className="text-2xl font-bold mb-2">Basic Information</h2>
+        <p className="text-muted-foreground">Enter the basic details for your product</p>
+          </div>
+
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Product Name *</Label>
+              <Input
+                id="name"
+                {...form.register('name')}
+                placeholder="Enter product name"
+                className={form.formState.errors.name && 'border-red-500'}
+              />
+              {form.formState.errors.name && (
+                <p className="text-sm text-red-500">{(form.formState.errors.name as any)?.message}</p>
+              )}
+        </div>
+            <div className="space-y-2">
+              <Label htmlFor="code">Product Code *</Label>
+              <Input
+                id="code"
+                {...form.register('code')}
+                placeholder="Enter product code"
+                className={form.formState.errors.code && 'border-red-500'}
+              />
+              {form.formState.errors.code && (
+                <p className="text-sm text-red-500">{(form.formState.errors.code as any)?.message}</p>
+      )}
+    </div>
       </div>
 
-      <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              {...form.register('description')}
+              placeholder="Enter product description"
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Tags</Label>
+            <div className="flex flex-wrap gap-2">
+              {form.watch('tags')?.map((tag: any, index: any) => (
+                <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeTag(tag)}>
+                  {tag} ×
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                id="tag-input"
+                placeholder="Add a tag"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addTag()
+                  }
+                }}
+              />
+              <Button type="button" variant="outline" size="sm" onClick={addTag}>
+                <Tag className="h-4 w-4 mr-1" />
+                Add Tag
+              </Button>
+            </div>
+        </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  const renderLocation = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-2">Location Information</h2>
+        <p className="text-muted-foreground">Where is this product located?</p>
+      </div>
+
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Product Name</Label>
+              <Label htmlFor="city">City *</Label>
           <Input
-            id="name"
-            placeholder="e.g., Hotel ABC Deluxe Room"
-            value={formData.name}
-            onChange={(e) => updateFormData("name", e.target.value)}
-          />
+                id="city"
+                {...form.register('location.city')}
+                placeholder="Enter city"
+                className={(form.formState.errors.location as any)?.city && 'border-red-500'}
+              />
+              {(form.formState.errors.location as any)?.city && (
+                <p className="text-sm text-red-500">{(form.formState.errors.location as any).city.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="country">Country *</Label>
+              <Input
+                id="country"
+                {...form.register('location.country')}
+                placeholder="Enter country"
+                className={(form.formState.errors.location as any)?.country && 'border-red-500'}
+              />
+              {(form.formState.errors.location as any)?.country && (
+                <p className="text-sm text-red-500">{(form.formState.errors.location as any).country.message}</p>
+              )}
+            </div>
         </div>
 
+          <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="supplier">Supplier</Label>
-          <div className="flex gap-2">
-            <Select onValueChange={(value) => updateFormData("supplierId", value)}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Select existing supplier" />
+              <Label htmlFor="lat">Latitude</Label>
+              <Input
+                id="lat"
+                type="number"
+                step="any"
+                {...form.register('location.lat', { valueAsNumber: true })}
+                placeholder="Latitude"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lng">Longitude</Label>
+              <Input
+                id="lng"
+                type="number"
+                step="any"
+                {...form.register('location.lng', { valueAsNumber: true })}
+                placeholder="Longitude"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                {...form.register('location.address')}
+                placeholder="Street address"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  const renderHotelAttributes = () => (
+      <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Star className="h-5 w-5" />
+        <h3 className="text-lg font-medium">Hotel Details</h3>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="star_rating">Star Rating *</Label>
+          <Select
+            value={form.watch('attributes.star_rating')?.toString() || ''}
+            onValueChange={(value) => form.setValue('attributes.star_rating', parseInt(value))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select rating" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="new">+ Create New Supplier</SelectItem>
-                {/* TODO: Load existing suppliers */}
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <SelectItem key={rating} value={rating.toString()}>
+                  {rating} Star{rating !== 1 ? 's' : ''}
+                </SelectItem>
+              ))}
               </SelectContent>
             </Select>
           </div>
-          {formData.supplierId === "new" && (
+        <div className="space-y-2">
+          <Label htmlFor="check_in_time">Check-in Time</Label>
             <Input
-              placeholder="Enter supplier name"
-              value={formData.supplier}
-              onChange={(e) => updateFormData("supplier", e.target.value)}
-            />
-          )}
+            id="check_in_time"
+            {...form.register('attributes.check_in_time')}
+            placeholder="14:00"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="check_out_time">Check-out Time</Label>
+          <Input
+            id="check_out_time"
+            {...form.register('attributes.check_out_time')}
+            placeholder="11:00"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="property_type">Property Type</Label>
+        <Select
+          value={form.watch('attributes.property_type') || ''}
+          onValueChange={(value) => form.setValue('attributes.property_type', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select property type" />
+              </SelectTrigger>
+              <SelectContent>
+            <SelectItem value="hotel">Hotel</SelectItem>
+            <SelectItem value="resort">Resort</SelectItem>
+            <SelectItem value="apartment">Apartment</SelectItem>
+            <SelectItem value="villa">Villa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+      <div className="space-y-2">
+        <Label>Amenities</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {amenityOptions.map((amenity) => {
+            const IconComponent = amenity.icon
+            const isSelected = form.watch('attributes.amenities')?.includes(amenity.value) || false
+            
+            return (
+              <div key={amenity.value} className="flex items-center space-x-2">
+                <Checkbox
+                  id={amenity.value}
+                  checked={isSelected}
+                  onCheckedChange={(checked) => handleAmenityChange(amenity.value, checked as boolean)}
+                />
+                <Label htmlFor={amenity.value} className="flex items-center gap-2 text-sm">
+                  <IconComponent className="h-4 w-4" />
+                  {amenity.label}
+                </Label>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderEventTicketAttributes = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Ticket className="h-5 w-5" />
+        <h3 className="text-lg font-medium">Event Details</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="costPerPerson">Your Cost (per person)</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">£</span>
+          <Label htmlFor="event_name">Name *</Label>
               <Input
-                id="costPerPerson"
-                type="number"
-                placeholder="0.00"
-                className="pl-8"
-                value={formData.costPerPerson}
-                onChange={(e) => updateFormData("costPerPerson", e.target.value)}
+            id="event_name"
+            {...form.register('attributes.event_name')}
+            placeholder="e.g., F1 Grand Prix, Music Festival"
               />
+            </div>
+        <div className="space-y-2">
+          <Label htmlFor="event_category">Event Category</Label>
+          <Select
+            value={form.watch('attributes.event_category') || ''}
+            onValueChange={(value) => form.setValue('attributes.event_category', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sports">Sports</SelectItem>
+              <SelectItem value="music">Music</SelectItem>
+              <SelectItem value="festival">Festival</SelectItem>
+              <SelectItem value="exhibition">Exhibition</SelectItem>
+              <SelectItem value="theater">Theater</SelectItem>
+              <SelectItem value="conference">Conference</SelectItem>
+              <SelectItem value="attraction">Attraction</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
             </div>
           </div>
 
+      <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="pricePerPerson">Selling Price (per person)</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">£</span>
+          <Label htmlFor="start_date">Start Date</Label>
               <Input
-                id="pricePerPerson"
-                type="number"
-                placeholder="0.00"
-                className="pl-8"
-                value={formData.pricePerPerson}
-                onChange={(e) => updateFormData("pricePerPerson", e.target.value)}
+            id="start_date"
+            type="date"
+            {...form.register('attributes.start_date')}
               />
             </div>
+        <div className="space-y-2">
+          <Label htmlFor="end_date">End Date</Label>
+          <Input
+            id="end_date"
+            type="date"
+            {...form.register('attributes.end_date')}
+          />
           </div>
         </div>
 
-        {/* Margin indicator */}
-        {formData.costPerPerson && formData.pricePerPerson && (
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Your Margin</span>
-              <span className={cn(
-                "text-sm font-bold",
-                calculateMargin() > 0 ? "text-green-600" : "text-red-600"
-              )}>
-                {calculateMargin().toFixed(1)}%
-              </span>
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {selectedTemplate && `Suggested: ${Math.round(PRODUCT_TEMPLATES.find(t => t.id === selectedTemplate)!.suggestedMargin * 100)}%`}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderStep3 = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h3 className="text-lg font-semibold mb-2">Availability</h3>
-        <p className="text-muted-foreground">How many can you sell?</p>
-      </div>
-
-      <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Availability Type</Label>
-          <Select onValueChange={(value) => updateFormData("availabilityType", value)}>
+          <Label htmlFor="age_restriction">Age Restriction</Label>
+          <Select
+            value={form.watch('attributes.age_restriction') || ''}
+            onValueChange={(value) => form.setValue('attributes.age_restriction', value)}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Select availability type" />
+              <SelectValue placeholder="Select age restriction" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="unlimited">
-                <div>
-                  <div className="font-medium">Unlimited</div>
-                  <div className="text-sm text-muted-foreground">No limit, always available</div>
-                </div>
-              </SelectItem>
-              <SelectItem value="fixed">
-                <div>
-                  <div className="font-medium">Fixed Quantity</div>
-                  <div className="text-sm text-muted-foreground">Limited number per day</div>
-                </div>
-              </SelectItem>
-              <SelectItem value="on-request">
-                <div>
-                  <div className="font-medium">On Request</div>
-                  <div className="text-sm text-muted-foreground">Check with supplier each time</div>
-                </div>
-              </SelectItem>
+              <SelectItem value="all_ages">All Ages</SelectItem>
+              <SelectItem value="18+">18+ Only</SelectItem>
+              <SelectItem value="21+">21+ Only</SelectItem>
+              <SelectItem value="family">Family Friendly</SelectItem>
+              <SelectItem value="adults_only">Adults Only</SelectItem>
+            </SelectContent>
+          </Select>
+            </div>
+        <div className="space-y-2">
+          <Label htmlFor="event_status">Event Status</Label>
+          <Select
+            value={form.watch('attributes.event_status') || ''}
+            onValueChange={(value) => form.setValue('attributes.event_status', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="upcoming">Upcoming</SelectItem>
+              <SelectItem value="live">Live</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+            </div>
+          </div>
+      </div>
+  )
+
+  const renderActivityAttributes = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Clock className="h-5 w-5" />
+        <h3 className="text-lg font-medium">Activity Details</h3>
+      </div>
+
+      {/* 1. Duration */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="duration_hours">Duration (hours) *</Label>
+          <Input
+            id="duration_hours"
+            type="number"
+            {...form.register('attributes.duration_hours', { valueAsNumber: true })}
+            placeholder="4"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="duration_type">Duration Type *</Label>
+          <Select
+            value={form.watch('attributes.duration_type') || ''}
+            onValueChange={(value) => form.setValue('attributes.duration_type', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select duration type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="half_day">Half Day (2-4 hours)</SelectItem>
+              <SelectItem value="full_day">Full Day (6-8 hours)</SelectItem>
+              <SelectItem value="multi_day">Multi Day (2+ days)</SelectItem>
+              <SelectItem value="short">Short (1-2 hours)</SelectItem>
             </SelectContent>
           </Select>
         </div>
-
-        {formData.availabilityType === "fixed" && (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity per day</Label>
-              <Input
-                id="quantity"
-                type="number"
-                placeholder="100"
-                value={formData.quantity}
-                onChange={(e) => updateFormData("quantity", e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Available from</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !formData.startDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.startDate ? format(formData.startDate, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={formData.startDate}
-                      onSelect={(date) => updateFormData("startDate", date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Available until</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !formData.endDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.endDate ? format(formData.endDate, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={formData.endDate}
-                      onSelect={(date) => updateFormData("endDate", date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          </>
-        )}
-
-        {formData.availabilityType === "unlimited" && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium text-green-800">
-                Unlimited availability
-              </span>
-            </div>
-            <p className="text-sm text-green-700 mt-1">
-              This product will always show as available. Perfect for freesale inventory.
-            </p>
-          </div>
-        )}
-
-        {formData.availabilityType === "on-request" && (
-          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-yellow-600" />
-              <span className="text-sm font-medium text-yellow-800">
-                On-request booking
-              </span>
-            </div>
-            <p className="text-sm text-yellow-700 mt-1">
-              Bookings will require manual confirmation from the supplier.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderStep4 = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h3 className="text-lg font-semibold mb-2">Review & Create</h3>
-        <p className="text-muted-foreground">Check your product details</p>
       </div>
 
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Product Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Name:</span>
-              <span className="text-sm font-medium">{formData.name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Supplier:</span>
-              <span className="text-sm font-medium">{formData.supplier}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Cost:</span>
-              <span className="text-sm font-medium">£{formData.costPerPerson} per person</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Price:</span>
-              <span className="text-sm font-medium">£{formData.pricePerPerson} per person</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Margin:</span>
-              <span className={cn(
-                "text-sm font-medium",
-                calculateMargin() > 0 ? "text-green-600" : "text-red-600"
-              )}>
-                {calculateMargin().toFixed(1)}%
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Availability:</span>
-              <span className="text-sm font-medium">
-                {formData.availabilityType === "unlimited" ? "Unlimited" :
-                 formData.availabilityType === "fixed" ? `${formData.quantity} per day` :
-                 "On request"}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+      {/* 2. Difficulty Level */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="difficulty_level">Difficulty Level *</Label>
+          <Select
+            value={form.watch('attributes.difficulty_level') || ''}
+            onValueChange={(value) => form.setValue('attributes.difficulty_level', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select difficulty" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="easy">Easy</SelectItem>
+              <SelectItem value="moderate">Moderate</SelectItem>
+              <SelectItem value="challenging">Challenging</SelectItem>
+              <SelectItem value="expert">Expert</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="physical_requirements">Physical Requirements</Label>
+          <Input
+            id="physical_requirements"
+            {...form.register('attributes.physical_requirements')}
+            placeholder="e.g., walking, climbing, swimming"
+          />
+        </div>
+      </div>
 
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h4 className="font-medium text-blue-900 mb-2">What happens next?</h4>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• Your product will be created with recommended settings</li>
-            <li>• You can customize pricing and availability later</li>
-            <li>• The product will be available for booking immediately</li>
-          </ul>
+      {/* 3. Group Type */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="group_type">Group Type *</Label>
+          <Select
+            value={form.watch('attributes.group_type') || ''}
+            onValueChange={(value) => form.setValue('attributes.group_type', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select group type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="private">Private</SelectItem>
+              <SelectItem value="group">Group</SelectItem>
+              <SelectItem value="self_guided">Self-guided</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="max_group_size">Maximum Group Size</Label>
+          <Input
+            id="max_group_size"
+            type="number"
+            {...form.register('attributes.max_group_size', { valueAsNumber: true })}
+            placeholder="20"
+          />
+        </div>
+      </div>
+
+      {/* 4. Category/Theme */}
+      <div className="space-y-2">
+        <Label htmlFor="activity_type">Activity Category *</Label>
+        <Select
+          value={form.watch('attributes.activity_type') || ''}
+          onValueChange={(value) => form.setValue('attributes.activity_type', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select activity category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="adventure">Adventure</SelectItem>
+            <SelectItem value="cultural">Cultural</SelectItem>
+            <SelectItem value="culinary">Culinary</SelectItem>
+            <SelectItem value="nature">Nature</SelectItem>
+            <SelectItem value="educational">Educational</SelectItem>
+            <SelectItem value="entertainment">Entertainment</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* 5. Seasonality */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="seasonality">Seasonality *</Label>
+          <Select
+            value={form.watch('attributes.seasonality') || ''}
+            onValueChange={(value) => form.setValue('attributes.seasonality', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select seasonality" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="year_round">Year-round</SelectItem>
+              <SelectItem value="seasonal">Seasonal</SelectItem>
+              <SelectItem value="weather_dependent">Weather-dependent</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="best_months">Best Months/Season</Label>
+          <Input
+            id="best_months"
+            {...form.register('attributes.best_months')}
+            placeholder="e.g., March-May, September-November"
+          />
+        </div>
+      </div>
+
+      {/* 6. Age Restrictions */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="age_restriction">Age Restriction *</Label>
+          <Select
+            value={form.watch('attributes.age_restriction') || ''}
+            onValueChange={(value) => form.setValue('attributes.age_restriction', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select age restriction" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="family_friendly">Family-friendly</SelectItem>
+              <SelectItem value="adult_only">Adult-only (18+)</SelectItem>
+              <SelectItem value="teen_adult">Teen & Adult (13+)</SelectItem>
+              <SelectItem value="senior_friendly">Senior-friendly</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="minimum_age">Minimum Age</Label>
+          <Input
+            id="minimum_age"
+            type="number"
+            {...form.register('attributes.minimum_age', { valueAsNumber: true })}
+            placeholder="e.g., 8, 12, 16"
+          />
         </div>
       </div>
     </div>
-  );
+  )
 
-  const handleNext = () => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleFinish = () => {
-    // Transform form data into the complex schema structure
-    const productData = {
-      // Basic product info
-      name: formData.name,
-      type: selectedTemplate,
-      status: "active",
-      
-      // Supplier
-      supplier: {
-        name: formData.supplier,
-        id: formData.supplierId
-      },
-      
-      // Pricing
-      costPerPerson: parseFloat(formData.costPerPerson),
-      pricePerPerson: parseFloat(formData.pricePerPerson),
-      margin: calculateMargin(),
-      
-      // Availability
-      availability: {
-        type: formData.availabilityType,
-        quantity: formData.availabilityType === "fixed" ? parseInt(formData.quantity) : null,
-        startDate: formData.startDate,
-        endDate: formData.endDate
-      },
-      
-      // Advanced settings (from template)
-      settings: formData.advancedSettings
-    };
-    
-    onComplete(productData);
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto">
-      {/* Progress indicator */}
-      <div className="flex items-center justify-center mb-8">
-        {[1, 2, 3, 4].map((step) => (
-          <React.Fragment key={step}>
-            <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium",
-              step <= currentStep 
-                ? "bg-primary text-primary-foreground" 
-                : "bg-muted text-muted-foreground"
-            )}>
-              {step}
-            </div>
-            {step < 4 && (
-              <div className={cn(
-                "w-12 h-1 mx-2",
-                step < currentStep ? "bg-primary" : "bg-muted"
-              )} />
-            )}
-          </React.Fragment>
-        ))}
+  const renderTransferAttributes = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Car className="h-5 w-5" />
+        <h3 className="text-lg font-medium">Transfer Details</h3>
       </div>
 
-      {/* Step content */}
-      <div className="min-h-[400px]">
-        {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && renderStep2()}
-        {currentStep === 3 && renderStep3()}
-        {currentStep === 4 && renderStep4()}
+      <div className="space-y-2">
+        <Label htmlFor="transfer_type">Transfer Type *</Label>
+        <Select
+          value={form.watch('attributes.transfer_type') || ''}
+          onValueChange={(value) => form.setValue('attributes.transfer_type', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select transfer type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="airport">Airport Transfer</SelectItem>
+            <SelectItem value="circuit">Circuit Transfer</SelectItem>
+            <SelectItem value="city">City Transfer</SelectItem>
+            <SelectItem value="inter_city">Inter-City Transfer</SelectItem>
+            <SelectItem value="hotel_shuttle">Hotel Shuttle</SelectItem>
+            <SelectItem value="private_transfer">Private Transfer</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  )
+
+  const renderPackageAttributes = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Package className="h-5 w-5" />
+        <h3 className="text-lg font-medium">Package Details</h3>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="package_type">Package Type *</Label>
+          <Select
+            value={form.watch('attributes.package_type') || ''}
+            onValueChange={(value) => form.setValue('attributes.package_type', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select package type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all_inclusive">All Inclusive</SelectItem>
+              <SelectItem value="half_board">Half Board</SelectItem>
+              <SelectItem value="bed_breakfast">Bed & Breakfast</SelectItem>
+              <SelectItem value="room_only">Room Only</SelectItem>
+              <SelectItem value="custom">Custom Package</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="duration_nights">Duration (nights) *</Label>
+          <Input
+            id="duration_nights"
+            type="number"
+            {...form.register('attributes.duration_nights', { valueAsNumber: true })}
+            placeholder="7"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="min_guests">Minimum Guests</Label>
+          <Input
+            id="min_guests"
+            type="number"
+            {...form.register('attributes.min_guests', { valueAsNumber: true })}
+            placeholder="2"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="max_guests">Maximum Guests</Label>
+          <Input
+            id="max_guests"
+            type="number"
+            {...form.register('attributes.max_guests', { valueAsNumber: true })}
+            placeholder="10"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="included_services">Included Services</Label>
+        <Textarea
+          id="included_services"
+          {...form.register('attributes.included_services')}
+          placeholder="List all included services..."
+          rows={3}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="excluded_services">Excluded Services</Label>
+        <Textarea
+          id="excluded_services"
+          {...form.register('attributes.excluded_services')}
+          placeholder="List excluded services..."
+          rows={3}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="validity_start">Validity Start Date</Label>
+          <Input
+            id="validity_start"
+            type="date"
+            {...form.register('attributes.validity_start')}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="validity_end">Validity End Date</Label>
+          <Input
+            id="validity_end"
+            type="date"
+            {...form.register('attributes.validity_end')}
+          />
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderExtrasAttributes = () => (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Package className="h-5 w-5" />
+        <h3 className="text-lg font-medium">Extras & Add-ons Details</h3>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="extra_category">Extra Category *</Label>
+        <Select
+          value={form.watch('attributes.extra_category') || ''}
+          onValueChange={(value) => form.setValue('attributes.extra_category', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select extra category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="transportation">Transportation</SelectItem>
+            <SelectItem value="equipment">Equipment & Gear</SelectItem>
+            <SelectItem value="food_beverage">Food & Beverage</SelectItem>
+            <SelectItem value="photography">Photography Services</SelectItem>
+            <SelectItem value="guide_services">Guide Services</SelectItem>
+            <SelectItem value="insurance">Insurance</SelectItem>
+            <SelectItem value="entertainment">Entertainment</SelectItem>
+            <SelectItem value="wellness">Wellness & Spa</SelectItem>
+            <SelectItem value="shopping">Shopping & Souvenirs</SelectItem>
+            <SelectItem value="other">Other Services</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+
+      <div className="space-y-2">
+        <Label htmlFor="description">Service Description</Label>
+        <Textarea
+          id="description"
+          {...form.register('attributes.description')}
+          placeholder="Describe what this extra service includes..."
+          rows={3}
+        />
+      </div>
+    </div>
+  )
+
+  const renderAttributes = () => {
+    if (!selectedProductType) {
+      return (
+        <div className="text-center py-8">
+          <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">Please select a product type first</p>
+            </div>
+      )
+    }
+
+    const typeName = selectedProductType.type_name?.toLowerCase()
+
+    switch (typeName) {
+      case 'accommodation':
+        return renderHotelAttributes()
+      case 'event':
+      case 'tickets & passes':
+        return renderEventTicketAttributes()
+      case 'activity':
+      case 'activities & experiences':
+        return renderActivityAttributes()
+      case 'transfer':
+      case 'transfers':
+        return renderTransferAttributes()
+      case 'package':
+        return renderPackageAttributes()
+      case 'extras & add-ons':
+        return renderExtrasAttributes()
+      default:
+        return (
+          <div className="text-center py-8">
+            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No specific attributes for this product type</p>
+            <p className="text-xs text-muted-foreground mt-2">Type name: {typeName}</p>
+            <p className="text-xs text-muted-foreground">Full type: {JSON.stringify(selectedProductType)}</p>
+          </div>
+        )
+    }
+  }
+
+  const renderImages = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-2">Product Images</h2>
+        <p className="text-muted-foreground">Add up to 5 images to showcase your product (optional)</p>
+      </div>
+
+      <ImageUpload
+        images={form.watch('media') || []}
+        onImagesChange={(images) => form.setValue('media', images)}
+        maxImages={5}
+        disabled={isLoading}
+      />
+    </div>
+  )
+
+  const renderReview = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-2">Review & Create</h2>
+        <p className="text-muted-foreground">Review your product details before creating</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Basic Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Name:</span>
+              <span className="font-medium">{form.watch('name')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Code:</span>
+              <span className="font-medium">{form.watch('code')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Type:</span>
+              <span className="font-medium">{selectedProductType?.type_name}</span>
+            </div>
+            {form.watch('description') && (
+            <div className="flex justify-between">
+                <span className="text-muted-foreground">Description:</span>
+                <span className="font-medium text-right max-w-xs truncate">
+                  {form.watch('description')}
+                </span>
+            </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Location</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">City:</span>
+              <span className="font-medium">{form.watch('location.city')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Country:</span>
+              <span className="font-medium">{form.watch('location.country')}</span>
+            </div>
+            {form.watch('location.address') && (
+            <div className="flex justify-between">
+                <span className="text-muted-foreground">Address:</span>
+                <span className="font-medium text-right max-w-xs truncate">
+                  {form.watch('location.address')}
+              </span>
+            </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Attributes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {Object.entries(form.watch('attributes') || {}).map(([key, value]) => (
+              <div key={key} className="flex justify-between">
+                <span className="text-muted-foreground capitalize">
+                  {key.replace(/_/g, ' ')}:
+                </span>
+                <span className="font-medium">
+                  {Array.isArray(value) ? value.join(', ') : (value as any)?.toString()}
+                </span>
+        </div>
+            ))}
+      </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return renderProductTypeSelection()
+      case 2:
+        return renderBasicInfo()
+      case 3:
+        return renderLocation()
+      case 4:
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold mb-2">Product Attributes</h2>
+              <p className="text-muted-foreground">Configure {selectedProductType?.type_name}-specific attributes</p>
+            </div>
+            <Card>
+              <CardContent className="p-6">
+                {renderAttributes()}
+              </CardContent>
+            </Card>
+          </div>
+        )
+      case 5:
+        return renderImages()
+      case 6:
+        return renderReview()
+      default:
+        return null
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="!max-w-7xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">Create New Product</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          {/* Step Progress */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4 overflow-x-auto pb-2">
+              {steps.map((step, index) => (
+                <div key={step.id} className="flex items-center min-w-0">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                      currentStep >= step.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {currentStep > step.id ? (
+                      <CheckCircle className="h-4 w-4" />
+                    ) : (
+                      step.id
+                    )}
+            </div>
+                  <div className="ml-2 min-w-0">
+                    <p className="text-sm font-medium">{step.title}</p>
+                    <p className="text-xs text-muted-foreground hidden sm:block">{step.description}</p>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className="w-12 h-px bg-gray-200 mx-4 hidden sm:block" />
+                  )}
+                </div>
+              ))}
+            </div>
+      </div>
+
+          {/* Step Content */}
+          <div className="min-h-[500px]">
+            {renderStep()}
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between mt-8">
-        <Button variant="outline" onClick={currentStep === 1 ? onCancel : handlePrevious}>
-          {currentStep === 1 ? "Cancel" : "Previous"}
+          <div className="flex justify-between pt-4 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={currentStep === 1}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Previous
         </Button>
         
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
+              {currentStep < 6 ? (
+                <Button type="button" onClick={handleNext}>
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
         <Button 
-          onClick={currentStep === 4 ? handleFinish : handleNext}
-          disabled={!isStepValid(currentStep)}
+                  type="button"
+                  onClick={form.handleSubmit(handleSubmit)}
+                  disabled={isLoading}
         >
-          {currentStep === 4 ? "Create Product" : "Next"}
+                  {isLoading ? 'Creating...' : 'Create Product'}
         </Button>
+              )}
       </div>
     </div>
-  );
+    </div>
+      </DialogContent>
+    </Dialog>
+  )
 }
+

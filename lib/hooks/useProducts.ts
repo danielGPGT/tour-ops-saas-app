@@ -27,13 +27,21 @@ export function useCreateProduct() {
   const { profile } = useAuth()
   
   return useMutation({
-    mutationFn: (data: Partial<Product>) => 
-      productQueries.createProduct({
+    mutationFn: (data: Partial<Product>) => {
+      if (!profile?.organization_id) {
+        throw new Error('User profile not loaded. Please try again.')
+      }
+      
+      return productQueries.createProduct({
         ...data,
-        organization_id: profile!.organization_id
-      }),
+        organization_id: profile.organization_id
+      })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
+    },
+    onError: (error: any) => {
+      console.error('Error creating product:', error)
     }
   })
 }
@@ -64,12 +72,9 @@ export function useDeleteProduct() {
 
 // Product types hooks
 export function useProductTypes() {
-  const { profile } = useAuth()
-  
   return useQuery({
-    queryKey: ['product-types', profile?.organization_id],
-    queryFn: () => productQueries.getProductTypes(profile!.organization_id),
-    enabled: !!profile?.organization_id
+    queryKey: ['product-types'],
+    queryFn: productQueries.getProductTypes
   })
 }
 

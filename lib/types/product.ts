@@ -6,26 +6,31 @@ export interface Product {
   code: string
   description?: string
   location: Location
-  attributes: ProductAttributes
+  attributes: any  // Type-specific attributes
+  tags: string[]
+  media: Array<{
+    url: string
+    alt: string
+    is_primary: boolean
+  }>
   is_active: boolean
   created_at: string
   updated_at: string
+  
   // Relations
   product_type?: ProductType
-  product_options?: ProductOption[]
-  selling_rates?: SellingRate[]
 }
+
+export type ProductTypeCode = 'accommodation' | 'event' | 'activity' | 'transfer' | 'package' | 'tickets & passes'
+export type ProductCategory = 'accommodation' | 'activity' | 'transport'
 
 export interface ProductType {
   id: string
-  organization_id: string
-  name: string
-  code: string
-  description?: string
-  icon?: string
+  type_name: ProductTypeCode
+  type_code: string
+  type_category: ProductCategory
+  attributes_schema: any
   is_active: boolean
-  created_at: string
-  updated_at: string
 }
 
 export interface ProductOption {
@@ -33,81 +38,87 @@ export interface ProductOption {
   product_id: string
   option_name: string
   option_code: string
+  description?: string
   standard_occupancy: number
   max_occupancy: number
   bed_configuration?: string
+  attributes: any  // Type-specific attributes
+  sort_order: number
   is_active: boolean
-  created_at: string
-  updated_at: string
 }
 
 export interface Location {
+  city: string
+  country: string
+  lat?: number
+  lng?: number
   address?: string
-  city?: string
-  state?: string
-  country?: string
-  postal_code?: string
-  coordinates?: {
-    lat: number
-    lng: number
-  }
-  venue_name?: string
-  venue_address?: string
 }
 
-export interface ProductAttributes {
-  // Hotel specific
-  star_rating?: number
-  check_in_time?: string
-  check_out_time?: string
-  amenities?: string[]
-  
-  // Event specific
-  event_date?: string
-  venue?: string
-  gates_open_time?: string
-  event_type?: string
-  
-  // Tour specific
-  duration_hours?: number
-  meeting_point?: string
-  inclusions?: string[]
-  exclusions?: string[]
-  difficulty_level?: string
-  
-  // Transfer specific
-  vehicle_type?: string
-  route?: string
-  luggage_allowance?: string
-  pickup_locations?: string[]
-  
-  // Common
-  tags?: string[]
-  seo_title?: string
-  seo_description?: string
-  slug?: string
+// Type-specific attributes
+export interface HotelAttributes {
+  star_rating: number
+  check_in_time: string
+  check_out_time: string
+  amenities: string[]
+  property_type: string  // 'hotel', 'resort', 'apartment'
+  chain?: string
 }
+
+export interface EventTicketAttributes {
+  event_name: string
+  event_date: string
+  venue_name: string
+  venue_capacity: number
+  event_type: string  // 'sports', 'concert', 'exhibition'
+  gates_open_time: string
+  event_start_time: string
+}
+
+export interface TourAttributes {
+  duration_hours: number
+  duration_days: number
+  meeting_point: string
+  meeting_time: string
+  end_point: string
+  tour_type: string  // 'group', 'private', 'self_guided'
+  inclusions: string[]
+  exclusions: string[]
+  max_group_size: number
+}
+
+export interface TransferAttributes {
+  vehicle_type: string  // 'sedan', 'suv', 'van', 'bus'
+  max_passengers: number
+  max_luggage: number
+  from_location: string
+  to_location: string
+  distance_km: number
+  duration_minutes: number
+  transfer_type: string  // 'airport', 'hotel', 'point_to_point'
+}
+
+export type RateBasis = 'per_room_per_night' | 'per_ticket' | 'per_person' | 'per_booking'
 
 export interface SellingRate {
   id: string
   organization_id: string
   product_id: string
-  product_option_id?: string
+  product_option_id: string
   rate_name: string
+  rate_code: string
   valid_from: string
   valid_to: string
-  rate_basis: 'per_room_per_night' | 'per_ticket' | 'per_person' | 'per_booking'
+  rate_basis: RateBasis
   currency: string
-  markup_type: 'fixed_amount' | 'percentage'
-  markup_value: number
-  customer_type: 'B2C' | 'B2B_agent' | 'B2B_corporate'
+  customer_type: 'b2c' | 'b2b_agent' | 'b2b_corporate'
+  dow_mask: string[]
+  min_nights?: number
+  max_nights?: number
   min_pax?: number
   max_pax?: number
-  dow_mask?: string // Days of week mask
   priority: number
   is_active: boolean
-  created_at: string
-  updated_at: string
 }
 
 // Form data types
@@ -117,32 +128,25 @@ export interface ProductFormData {
   product_type_id: string
   description?: string
   location: Location
-  attributes: ProductAttributes
+  attributes: any  // Type-specific attributes
+  tags: string[]
+  media: Array<{
+    url: string
+    alt: string
+    is_primary: boolean
+  }>
   is_active: boolean
 }
 
 export interface ProductOptionFormData {
   option_name: string
   option_code: string
+  description?: string
   standard_occupancy: number
   max_occupancy: number
   bed_configuration?: string
-  is_active: boolean
-}
-
-export interface SellingRateFormData {
-  rate_name: string
-  valid_from: string
-  valid_to: string
-  rate_basis: 'per_room_per_night' | 'per_ticket' | 'per_person' | 'per_booking'
-  currency: string
-  markup_type: 'fixed_amount' | 'percentage'
-  markup_value: number
-  customer_type: 'B2C' | 'B2B_agent' | 'B2B_corporate'
-  min_pax?: number
-  max_pax?: number
-  dow_mask?: string
-  priority: number
+  attributes: any  // Type-specific attributes
+  sort_order: number
   is_active: boolean
 }
 

@@ -34,59 +34,37 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
       product_type_id: product?.product_type_id || '',
       description: product?.description || '',
       location: {
-        address: product?.location?.address || '',
         city: product?.location?.city || '',
-        state: product?.location?.state || '',
         country: product?.location?.country || '',
-        postal_code: product?.location?.postal_code || '',
-        venue_name: product?.location?.venue_name || '',
-        venue_address: product?.location?.venue_address || ''
+        lat: product?.location?.lat || undefined,
+        lng: product?.location?.lng || undefined,
+        address: product?.location?.address || ''
       },
-      attributes: {
-        star_rating: product?.attributes?.star_rating || undefined,
-        check_in_time: product?.attributes?.check_in_time || '',
-        check_out_time: product?.attributes?.check_out_time || '',
-        amenities: product?.attributes?.amenities || [],
-        event_date: product?.attributes?.event_date || '',
-        venue: product?.attributes?.venue || '',
-        gates_open_time: product?.attributes?.gates_open_time || '',
-        event_type: product?.attributes?.event_type || '',
-        duration_hours: product?.attributes?.duration_hours || undefined,
-        meeting_point: product?.attributes?.meeting_point || '',
-        inclusions: product?.attributes?.inclusions || [],
-        exclusions: product?.attributes?.exclusions || [],
-        difficulty_level: product?.attributes?.difficulty_level || '',
-        vehicle_type: product?.attributes?.vehicle_type || '',
-        route: product?.attributes?.route || '',
-        luggage_allowance: product?.attributes?.luggage_allowance || '',
-        pickup_locations: product?.attributes?.pickup_locations || [],
-        tags: product?.attributes?.tags || [],
-        seo_title: product?.attributes?.seo_title || '',
-        seo_description: product?.attributes?.seo_description || '',
-        slug: product?.attributes?.slug || ''
-      },
+      attributes: product?.attributes || {},
+      tags: product?.tags || [],
+      images: product?.images || [],
       is_active: product?.is_active ?? true
     }
   })
 
   const selectedProductType = productTypes?.find(type => type.id === form.watch('product_type_id'))
-  const productTypeName = selectedProductType?.name?.toLowerCase()
+  const productTypeName = selectedProductType?.type_name?.toLowerCase()
 
   const handleSubmit = (data: ProductFormData) => {
     onSubmit(data)
   }
 
   const addTag = () => {
-    const currentTags = form.getValues('attributes.tags') || []
+    const currentTags = form.getValues('tags') || []
     const newTag = prompt('Enter a tag:')
     if (newTag && !currentTags.includes(newTag)) {
-      form.setValue('attributes.tags', [...currentTags, newTag])
+      form.setValue('tags', [...currentTags, newTag])
     }
   }
 
   const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues('attributes.tags') || []
-    form.setValue('attributes.tags', currentTags.filter(tag => tag !== tagToRemove))
+    const currentTags = form.getValues('tags') || []
+    form.setValue('tags', currentTags.filter(tag => tag !== tagToRemove))
   }
 
   const addAmenity = () => {
@@ -105,11 +83,10 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
   return (
     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
       <Tabs defaultValue="basic" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="basic">Basic Info</TabsTrigger>
           <TabsTrigger value="location">Location</TabsTrigger>
           <TabsTrigger value="attributes">Attributes</TabsTrigger>
-          <TabsTrigger value="seo">SEO</TabsTrigger>
         </TabsList>
 
         {/* Basic Information Tab */}
@@ -158,7 +135,7 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
                   <SelectContent>
                     {productTypes?.map((type) => (
                       <SelectItem key={type.id} value={type.id}>
-                        {type.name}
+                        {type.type_name} ({type.type_code})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -203,6 +180,53 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="city">City *</Label>
+                  <Input
+                    id="city"
+                    {...form.register('location.city')}
+                    placeholder="City"
+                    className={form.formState.errors.location?.city && 'border-red-500'}
+                  />
+                  {form.formState.errors.location?.city && (
+                    <p className="text-sm text-red-500">{form.formState.errors.location.city.message}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country *</Label>
+                  <Input
+                    id="country"
+                    {...form.register('location.country')}
+                    placeholder="Country"
+                    className={form.formState.errors.location?.country && 'border-red-500'}
+                  />
+                  {form.formState.errors.location?.country && (
+                    <p className="text-sm text-red-500">{form.formState.errors.location.country.message}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="lat">Latitude</Label>
+                  <Input
+                    id="lat"
+                    type="number"
+                    step="any"
+                    {...form.register('location.lat', { valueAsNumber: true })}
+                    placeholder="Latitude"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lng">Longitude</Label>
+                  <Input
+                    id="lng"
+                    type="number"
+                    step="any"
+                    {...form.register('location.lng', { valueAsNumber: true })}
+                    placeholder="Longitude"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="address">Address</Label>
                   <Input
                     id="address"
@@ -210,64 +234,8 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
                     placeholder="Street address"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    {...form.register('location.city')}
-                    placeholder="City"
-                  />
-                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="state">State/Province</Label>
-                  <Input
-                    id="state"
-                    {...form.register('location.state')}
-                    placeholder="State"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Input
-                    id="country"
-                    {...form.register('location.country')}
-                    placeholder="Country"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="postal_code">Postal Code</Label>
-                  <Input
-                    id="postal_code"
-                    {...form.register('location.postal_code')}
-                    placeholder="Postal code"
-                  />
-                </div>
-              </div>
-
-              {/* Event-specific venue fields */}
-              {productTypeName === 'event_ticket' && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="venue_name">Venue Name</Label>
-                    <Input
-                      id="venue_name"
-                      {...form.register('location.venue_name')}
-                      placeholder="Venue name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="venue_address">Venue Address</Label>
-                    <Input
-                      id="venue_address"
-                      {...form.register('location.venue_address')}
-                      placeholder="Venue address"
-                    />
-                  </div>
-                </>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -495,7 +463,7 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
               <div className="space-y-2">
                 <Label>Tags</Label>
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {form.watch('attributes.tags')?.map((tag, index) => (
+                  {form.watch('tags')?.map((tag, index) => (
                     <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeTag(tag)}>
                       {tag} ×
                     </Badge>
@@ -510,43 +478,6 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
           </Card>
         </TabsContent>
 
-        {/* SEO Tab */}
-        <TabsContent value="seo" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>SEO Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="seo_title">SEO Title</Label>
-                <Input
-                  id="seo_title"
-                  {...form.register('attributes.seo_title')}
-                  placeholder="SEO optimized title"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="seo_description">SEO Description</Label>
-                <Textarea
-                  id="seo_description"
-                  {...form.register('attributes.seo_description')}
-                  placeholder="SEO optimized description"
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="slug">URL Slug</Label>
-                <Input
-                  id="slug"
-                  {...form.register('attributes.slug')}
-                  placeholder="url-friendly-slug"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Form Actions */}

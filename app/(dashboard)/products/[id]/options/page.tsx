@@ -103,6 +103,26 @@ export default function ProductOptionsPage({ params }: ProductOptionsPageProps) 
     setEditingOption(null)
   }
 
+  const handleUpdate = async (optionId: string, data: Partial<ProductOption>) => {
+    try {
+      await updateOption.mutateAsync({ id: optionId, data })
+      showSuccess('Product option updated successfully')
+    } catch (error) {
+      showError('Failed to update product option')
+      throw error
+    }
+  }
+
+  const handleReorder = async (optionId: string, newSortOrder: number) => {
+    try {
+      await updateOption.mutateAsync({ id: optionId, data: { sort_order: newSortOrder } })
+      showSuccess('Product option reordered successfully')
+    } catch (error) {
+      showError('Failed to reorder product option')
+      throw error
+    }
+  }
+
   const handleConfirmDelete = async () => {
     if (!optionToDelete) return
 
@@ -191,6 +211,8 @@ export default function ProductOptionsPage({ params }: ProductOptionsPageProps) 
           onEdit={handleEdit}
           onDelete={handleDelete}
           onAdd={handleAdd}
+          onUpdate={handleUpdate}
+          onReorder={handleReorder}
           isLoading={optionsLoading}
         />
       )}

@@ -1,330 +1,302 @@
-"use client";
+"use client"
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import ContentEditable, { ContentEditableEvent } from "react-contenteditable";
-import { Edit2, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import React, { useState, useRef, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { Check, X, Edit2, Save } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface EnterpriseInlineEditProps {
-  value: string;
-  onSave: (value: string) => Promise<void> | void;
-  placeholder?: string;
-  className?: string;
-  disabled?: boolean;
-  maxLength?: number;
-  multiline?: boolean;
-  validation?: (value: string) => string | null;
-  loading?: boolean;
-  emptyValue?: string;
-  sanitizeHtml?: boolean;
-  allowedTags?: string[];
-  allowedAttributes?: string[];
+  value: any
+  type?: 'text' | 'textarea' | 'select' | 'number' | 'date' | 'tags'
+  options?: Array<{ value: string; label: string }>
+  placeholder?: string
+  className?: string
+  onSave: (value: any) => Promise<void> | void
+  onCancel?: () => void
+  disabled?: boolean
+  multiline?: boolean
+  rows?: number
+  validation?: (value: any) => string | null
+  formatValue?: (value: any) => string
+  editIcon?: React.ReactNode
+  saveIcon?: React.ReactNode
+  cancelIcon?: React.ReactNode
 }
 
 export function EnterpriseInlineEdit({
   value,
-  onSave,
-  placeholder = "Click to edit",
+  type = 'text',
+  options = [],
+  placeholder = 'Click to edit',
   className,
+  onSave,
+  onCancel,
   disabled = false,
-  maxLength,
   multiline = false,
+  rows = 3,
   validation,
-  loading = false,
-  emptyValue = "Not specified",
-  sanitizeHtml = true,
-  allowedTags = ["br", "strong", "em", "u"],
-  allowedAttributes = []
+  formatValue,
+  editIcon = <Edit2 className="h-3 w-3" />,
+  saveIcon = <Save className="h-3 w-3" />,
+  cancelIcon = <X className="h-3 w-3" />
 }: EnterpriseInlineEditProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value);
-  const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const contentEditableRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const latestValueRef = useRef<string>(value);
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Update edit value when prop value changes
   useEffect(() => {
-    setEditValue(value);
-  }, [value]);
+    setEditValue(value)
+  }, [value])
 
-  // Focus and select text when editing starts
   useEffect(() => {
-    if (isEditing && contentEditableRef.current) {
-      const element = contentEditableRef.current;
-      element.focus();
-      
-      // Select all text
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+    if (isEditing) {
+      if (type === 'textarea' && textareaRef.current) {
+        textareaRef.current.focus()
+        textareaRef.current.select()
+      } else if (inputRef.current) {
+        inputRef.current.focus()
+        inputRef.current.select()
+      }
     }
-  }, [isEditing]);
+  }, [isEditing, type])
 
-  const sanitizeValue = useCallback((html: string): string => {
-    if (!sanitizeHtml) return html;
-    
-    // Simple HTML sanitization - remove all tags except allowed ones
-    let sanitized = html;
-    
-    // Remove all tags first
-    sanitized = sanitized.replace(/<[^>]*>/g, '');
-    
-    // Add back allowed tags if they were present
-    if (allowedTags.includes('br')) {
-      sanitized = sanitized.replace(/\n/g, '<br>');
-    }
-    
-    return sanitized;
-  }, [sanitizeHtml, allowedTags]);
+  const handleEdit = () => {
+    if (disabled) return
+    setIsEditing(true)
+    setEditValue(value)
+    setError(null)
+  }
 
-  const handleChange = useCallback((evt: ContentEditableEvent) => {
-    const newValue = sanitizeValue(evt.target.value);
-    console.log('📝 handleChange called:', { 
-      originalValue: evt.target.value, 
-      sanitizedValue: newValue,
-      currentEditValue: editValue 
-    });
-    setEditValue(newValue);
-    setError(null);
-    
-    // Store the latest value for immediate use
-    latestValueRef.current = newValue;
-  }, [sanitizeValue, editValue]);
-
-  const handleStartEdit = useCallback(() => {
-    console.log('🖱️ handleStartEdit called:', { value, disabled, loading });
-    if (disabled || loading) return;
-    setEditValue(value);
-    latestValueRef.current = value;
-    setError(null);
-    setIsEditing(true);
-    console.log('✅ Edit mode started, editValue set to:', value);
-  }, [disabled, loading, value]);
-
-  const validateAndSave = useCallback(async (currentValue?: string) => {
-    // Use the passed value or fall back to editValue
-    const valueToCheck = currentValue || editValue;
-    const trimmedValue = valueToCheck.trim();
-    console.log('🔄 EnterpriseInlineEdit validateAndSave called:', { 
-      trimmedValue, 
-      originalValue: value, 
-      isChanged: trimmedValue !== value,
-      currentValue,
-      editValue
-    });
-    
-    // Clear any existing timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-
-    // Validate if validation function provided
+  const handleSave = async () => {
     if (validation) {
-      const validationError = validation(trimmedValue);
+      const validationError = validation(editValue)
       if (validationError) {
-        setError(validationError);
-        return;
+        setError(validationError)
+        return
       }
     }
 
-    // Check max length
-    if (maxLength && trimmedValue.length > maxLength) {
-      setError(`Maximum ${maxLength} characters allowed`);
-      return;
+    setIsLoading(true)
+    try {
+      await onSave(editValue)
+      setIsEditing(false)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setEditValue(value)
+    setIsEditing(false)
+    setError(null)
+    onCancel?.()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !multiline) {
+      e.preventDefault()
+      handleSave()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancel()
+    }
+  }
+
+  const renderDisplayValue = () => {
+    if (formatValue) {
+      return formatValue(value)
     }
 
-    // Only save if value changed
-    if (trimmedValue !== value) {
-      console.log('💾 Value changed, calling onSave with:', trimmedValue);
-      setIsSaving(true);
-      try {
-        await onSave(trimmedValue);
-        console.log('✅ onSave completed successfully');
-        setIsEditing(false);
-        setError(null);
-      } catch (error) {
-        console.error('❌ Error saving:', error);
-        toast.error('Failed to save changes');
-        setError('Failed to save changes');
-      } finally {
-        setIsSaving(false);
+    if (type === 'tags' && Array.isArray(value)) {
+      if (value.length === 0) {
+        return <span className="text-muted-foreground">No tags</span>
       }
-    } else {
-      console.log('📝 No changes detected, canceling edit');
-      setIsEditing(false);
-      setError(null);
+      return (
+        <div className="flex flex-wrap gap-1">
+          {value.slice(0, 3).map((tag, index) => (
+            <Badge key={index} variant="secondary" className="text-xs">
+              {tag}
+            </Badge>
+          ))}
+          {value.length > 3 && (
+            <Badge variant="outline" className="text-xs">
+              +{value.length - 3} more
+            </Badge>
+          )}
+        </div>
+      )
     }
-  }, [editValue, value, validation, maxLength, onSave]);
 
-  const handleSave = useCallback(() => {
-    validateAndSave();
-  }, [validateAndSave]);
-
-  const handleCancel = useCallback(() => {
-    setEditValue(value);
-    setError(null);
-    setIsEditing(false);
-  }, [value]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    console.log('⌨️ Key pressed:', e.key, 'multiline:', multiline, 'shiftKey:', e.shiftKey);
-    
-    if (e.key === "Enter" && !multiline) {
-      console.log('💾 Enter pressed (single-line), saving...');
-      e.preventDefault();
-      validateAndSave(latestValueRef.current);
-    } else if (e.key === "Escape") {
-      console.log('❌ Escape pressed, canceling...');
-      e.preventDefault();
-      handleCancel();
-    } else if (e.key === "Enter" && multiline && e.shiftKey) {
-      console.log('📝 Shift+Enter pressed (multiline), allowing line break');
-      // Allow Shift+Enter for multiline
-      return;
-    } else if (e.key === "Enter" && multiline) {
-      console.log('💾 Enter pressed (multiline), saving...');
-      // Save on Enter for multiline too
-      e.preventDefault();
-      validateAndSave(latestValueRef.current);
+    if (type === 'select' && options.length > 0) {
+      const option = options.find(opt => opt.value === value)
+      return option ? option.label : value
     }
-  }, [validateAndSave, handleCancel, multiline]);
 
-  const handleBlur = useCallback(() => {
-    // Cancel editing when clicking away
-    if (isEditing && !isSaving) {
-      handleCancel();
+    if (value === null || value === undefined || value === '') {
+      return <span className="text-muted-foreground italic">{placeholder}</span>
     }
-  }, [isEditing, isSaving, handleCancel]);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
+    return String(value)
+  }
+
+  const renderInput = () => {
+    switch (type) {
+      case 'textarea':
+        return (
+          <Textarea
+            ref={textareaRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            rows={rows}
+            className={cn('min-h-[80px]', error && 'border-red-500')}
+          />
+        )
+      case 'select':
+        return (
+          <Select
+            value={editValue}
+            onValueChange={setEditValue}
+          >
+            <SelectTrigger className={cn(error && 'border-red-500')}>
+              <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )
+      case 'number':
+        return (
+          <Input
+            ref={inputRef}
+            type="number"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className={cn(error && 'border-red-500')}
+          />
+        )
+      case 'date':
+        return (
+          <Input
+            ref={inputRef}
+            type="date"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className={cn(error && 'border-red-500')}
+          />
+        )
+      default:
+        return (
+          <Input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className={cn(error && 'border-red-500')}
+          />
+        )
+    }
+  }
 
   if (isEditing) {
     return (
-      <div className="flex items-start gap-2 w-full">
-        <div className="flex-1">
-          <ContentEditable
-            innerRef={contentEditableRef}
-            html={editValue}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBlur}
-            className={cn(
-              "min-h-[20px] px-2 py-1 border border-input rounded-md bg-background text-sm",
-              "focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-              "transition-all duration-200",
-              error && "border-destructive focus:ring-destructive",
-              className
-            )}
-            disabled={disabled || loading}
-            data-placeholder={placeholder}
-            style={{
-              minHeight: multiline ? '60px' : '32px',
-              whiteSpace: multiline ? 'pre-wrap' : 'nowrap',
-              overflow: multiline ? 'auto' : 'hidden'
-            }}
-          />
+      <div className={cn('space-y-2', className)}>
+        {renderInput()}
           {error && (
-            <div className="text-xs text-destructive mt-1 px-2">{error}</div>
-          )}
+          <p className="text-sm text-red-500">{error}</p>
+        )}
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={isLoading}
+            className="h-8 px-2"
+          >
+            {saveIcon}
+            <span className="sr-only">Save</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isLoading}
+            className="h-8 px-2"
+          >
+            {cancelIcon}
+            <span className="sr-only">Cancel</span>
+          </Button>
         </div>
       </div>
-    );
+    )
   }
-
-  const displayValue = value || emptyValue;
-  const isEmpty = !value;
 
   return (
     <div 
       className={cn(
-        "group flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md p-1 -m-1 transition-all duration-200",
-        "hover:shadow-sm border border-transparent hover:border-primary",
-        disabled && "cursor-not-allowed opacity-50",
-        loading && "opacity-50",
-        isEmpty && "text-muted-foreground italic",
+        'group flex items-center justify-between p-2 rounded-md hover:bg-gray-50 cursor-pointer transition-colors',
+        disabled && 'cursor-not-allowed opacity-50',
         className
       )}
-      onClick={handleStartEdit}
+      onClick={handleEdit}
     >
-      <div className={cn(
-        "flex-1 min-h-[20px] flex items-center",
-        multiline && "whitespace-pre-wrap"
-      )}>
-        {displayValue}
+      <div className="flex-1 min-w-0">
+        {renderDisplayValue()}
       </div>
-      {!disabled && !loading && (
-        <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0" />
-      )}
-      {loading && (
-        <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
+      {!disabled && (
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+          <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+            {editIcon}
+            <span className="sr-only">Edit</span>
+          </Button>
+      </div>
       )}
     </div>
-  );
+  )
 }
 
 // Specialized components for common use cases
-export function EnterpriseTextEdit({
-  value,
-  onSave,
-  placeholder = "Click to edit",
-  className,
-  disabled = false,
-  maxLength,
-  validation,
-  loading = false,
-  emptyValue = "Not specified"
-}: Omit<EnterpriseInlineEditProps, 'multiline'>) {
-  return (
-    <EnterpriseInlineEdit
-      value={value}
-      onSave={onSave}
-      placeholder={placeholder}
-      multiline={false}
-      className={className}
-      disabled={disabled}
-      maxLength={maxLength}
-      validation={validation}
-      loading={loading}
-      emptyValue={emptyValue}
-    />
-  );
+export function InlineTextEdit({ value, onSave, ...props }: Omit<EnterpriseInlineEditProps, 'type'>) {
+  return <EnterpriseInlineEdit type="text" value={value} onSave={onSave} {...props} />
 }
 
-export function EnterpriseTextareaEdit({
-  value,
-  onSave,
-  placeholder = "Click to edit",
-  className,
-  disabled = false,
-  maxLength,
-  validation,
-  loading = false,
-  emptyValue = "Not specified"
-}: Omit<EnterpriseInlineEditProps, 'multiline'>) {
-  return (
-    <EnterpriseInlineEdit
-      value={value}
-      onSave={onSave}
-      placeholder={placeholder}
-      multiline={true}
-      className={className}
-      disabled={disabled}
-      maxLength={maxLength}
-      validation={validation}
-      loading={loading}
-      emptyValue={emptyValue}
-    />
-  );
+export function InlineTextareaEdit({ value, onSave, ...props }: Omit<EnterpriseInlineEditProps, 'type'>) {
+  return <EnterpriseInlineEdit type="textarea" value={value} onSave={onSave} {...props} />
+}
+
+export function InlineSelectEdit({ value, options, onSave, ...props }: Omit<EnterpriseInlineEditProps, 'type'>) {
+  return <EnterpriseInlineEdit type="select" value={value} options={options} onSave={onSave} {...props} />
+}
+
+export function InlineNumberEdit({ value, onSave, ...props }: Omit<EnterpriseInlineEditProps, 'type'>) {
+  return <EnterpriseInlineEdit type="number" value={value} onSave={onSave} {...props} />
+}
+
+export function InlineDateEdit({ value, onSave, ...props }: Omit<EnterpriseInlineEditProps, 'type'>) {
+  return <EnterpriseInlineEdit type="date" value={value} onSave={onSave} {...props} />
+}
+
+export function InlineTagsEdit({ value, onSave, ...props }: Omit<EnterpriseInlineEditProps, 'type'>) {
+  return <EnterpriseInlineEdit type="tags" value={value} onSave={onSave} {...props} />
 }

@@ -14,7 +14,8 @@ import {
   Calendar,
   Clock,
   Car,
-  Ticket
+  Ticket,
+  Package
 } from 'lucide-react'
 import { format } from 'date-fns'
 import type { Product } from '@/lib/types/product'
@@ -24,10 +25,11 @@ interface ProductListProps {
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
   onView: (product: Product) => void
+  onRowClick?: (product: Product) => void
   isLoading?: boolean
 }
 
-export function ProductList({ products, onEdit, onDelete, onView, isLoading }: ProductListProps) {
+export function ProductList({ products, onEdit, onDelete, onView, onRowClick, isLoading }: ProductListProps) {
   const getProductTypeIcon = (typeName: string) => {
     switch (typeName?.toLowerCase()) {
       case 'hotel':
@@ -64,6 +66,23 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
 
   const columns = [
     {
+      key: 'image',
+      header: 'Image',
+      render: (product: Product) => (
+        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+          {product.media && product.media.length > 0 ? (
+            <img 
+              src={product.media.find((img: any) => img.is_primary)?.url || product.media[0].url} 
+              alt={product.media.find((img: any) => img.is_primary)?.alt || product.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Package className="h-6 w-6 text-gray-400" />
+          )}
+        </div>
+      )
+    },
+    {
       key: 'name',
       header: 'Product',
       render: (product: Product) => (
@@ -78,9 +97,9 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
       header: 'Type',
       render: (product: Product) => (
         <div className="flex items-center gap-2">
-          {getProductTypeIcon(product.product_type?.name || '')}
-          <Badge className={getProductTypeColor(product.product_type?.name || '')}>
-            {product.product_type?.name || 'Unknown'}
+          {getProductTypeIcon(product.product_type?.type_name || '')}
+          <Badge className={getProductTypeColor(product.product_type?.type_name || '')}>
+            {product.product_type?.type_name || 'Unknown'}
           </Badge>
         </div>
       )
@@ -92,9 +111,9 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
         <div className="flex items-center gap-1 text-sm text-muted-foreground">
           <MapPin className="h-3 w-3" />
           <span>
-            {product.location.city && product.location.country 
-              ? `${product.location.city}, ${product.location.country}`
-              : product.location.venue_name || 'Not specified'
+            {product.location?.city && product.location?.country 
+              ? `${product.location?.city}, ${product.location?.country}`
+              : 'Not specified'
             }
           </span>
         </div>
@@ -107,7 +126,7 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
         const { attributes } = product
         
         // Hotel specific
-        if (product.product_type?.name?.toLowerCase() === 'hotel') {
+        if (product.product_type?.type_name?.toLowerCase() === 'hotel') {
           return (
             <div className="text-sm">
               {attributes.star_rating && (
@@ -121,7 +140,7 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
         }
         
         // Event specific
-        if (product.product_type?.name?.toLowerCase() === 'event_ticket') {
+        if (product.product_type?.type_name?.toLowerCase() === 'event_ticket') {
           return (
             <div className="text-sm">
               {attributes.event_date && (
@@ -135,7 +154,7 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
         }
         
         // Tour specific
-        if (product.product_type?.name?.toLowerCase() === 'tour') {
+        if (product.product_type?.type_name?.toLowerCase() === 'tour') {
           return (
             <div className="text-sm">
               {attributes.duration_hours && (
@@ -149,7 +168,7 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
         }
         
         // Transfer specific
-        if (product.product_type?.name?.toLowerCase() === 'transfer') {
+        if (product.product_type?.type_name?.toLowerCase() === 'transfer') {
           return (
             <div className="text-sm">
               {attributes.vehicle_type && (
@@ -164,15 +183,6 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
         
         return <span className="text-sm text-muted-foreground">—</span>
       }
-    },
-    {
-      key: 'options',
-      header: 'Options',
-      render: (product: Product) => (
-        <div className="text-sm">
-          {product.product_options?.length || 0} option{(product.product_options?.length || 0) !== 1 ? 's' : ''}
-        </div>
-      )
     },
     {
       key: 'status',
@@ -226,33 +236,25 @@ export function ProductList({ products, onEdit, onDelete, onView, isLoading }: P
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Products</CardTitle>
-        </CardHeader>
-        <CardContent>
+
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
             <p className="mt-2 text-sm text-muted-foreground">Loading products...</p>
           </div>
-        </CardContent>
-      </Card>
+
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Products</CardTitle>
-      </CardHeader>
-      <CardContent>
+
         <DataTable
           columns={columns}
           data={products}
-          searchKey="name"
-          emptyMessage="No products found"
+          emptyState={{
+            icon: <Package className="h-8 w-8" />,
+            title: "No products found",
+            description: "Create your first product to get started"
+          }}
         />
-      </CardContent>
-    </Card>
   )
 }

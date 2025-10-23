@@ -2,10 +2,9 @@
 
 import React from 'react'
 import { useRouter } from 'next/navigation'
-import { ProductForm } from '@/components/products/product-form'
+import { ProductCreationWizard } from '@/components/products/ProductCreationWizard'
 import { useCreateProduct } from '@/lib/hooks/useProducts'
 import { EventToast, showSuccess, showError } from '@/components/common/EventToast'
-import { PageHeader } from '@/components/common/PageHeader'
 import type { ProductFormData } from '@/lib/validations/product.schema'
 
 export default function NewProductPage() {
@@ -24,26 +23,18 @@ export default function NewProductPage() {
     }
   }
 
-  const handleCancel = () => {
-    router.push('/products')
+  const handleClose = (open: boolean) => {
+    if (!open) {
+      router.push('/products')
+    }
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Create New Product"
-        description="Add a new product to your catalog"
-        backButton={{
-          onClick: () => router.push('/products'),
-          label: 'Back to Products'
-        }}
-      />
-
-      <ProductForm
-        onSubmit={handleSubmit}
-        onCancel={handleCancel}
-        isLoading={createProduct.isPending}
-      />
-    </div>
+    <ProductCreationWizard
+      open={true}
+      onOpenChange={handleClose}
+      onSubmit={handleSubmit}
+      isLoading={createProduct.isPending}
+    />
   )
 }

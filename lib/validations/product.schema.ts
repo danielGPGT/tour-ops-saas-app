@@ -2,97 +2,119 @@ import { z } from 'zod'
 
 // Location schema
 const locationSchema = z.object({
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  country: z.string().optional(),
-  postal_code: z.string().optional(),
-  coordinates: z.object({
-    lat: z.number(),
-    lng: z.number()
-  }).optional(),
-  venue_name: z.string().optional(),
-  venue_address: z.string().optional()
+  city: z.string().min(1, 'City is required'),
+  country: z.string().min(1, 'Country is required'),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  address: z.string().optional()
 })
 
-// Product attributes schema
-const productAttributesSchema = z.object({
-  // Hotel specific
-  star_rating: z.number().min(1).max(5).optional(),
-  check_in_time: z.string().optional(),
-  check_out_time: z.string().optional(),
-  amenities: z.array(z.string()).optional(),
-  
-  // Event specific
-  event_date: z.string().optional(),
-  venue: z.string().optional(),
-  gates_open_time: z.string().optional(),
-  event_type: z.string().optional(),
-  
-  // Tour specific
-  duration_hours: z.number().min(0).optional(),
-  meeting_point: z.string().optional(),
-  inclusions: z.array(z.string()).optional(),
-  exclusions: z.array(z.string()).optional(),
-  difficulty_level: z.string().optional(),
-  
-  // Transfer specific
-  vehicle_type: z.string().optional(),
-  route: z.string().optional(),
-  luggage_allowance: z.string().optional(),
-  pickup_locations: z.array(z.string()).optional(),
-  
-  // Common
-  tags: z.array(z.string()).optional(),
-  seo_title: z.string().optional(),
-  seo_description: z.string().optional(),
-  slug: z.string().optional()
+// Image schema
+const imageSchema = z.object({
+  url: z.string().url(),
+  alt: z.string(),
+  is_primary: z.boolean()
+})
+
+// Hotel attributes
+const hotelAttributesSchema = z.object({
+  star_rating: z.number().min(1).max(5),
+  check_in_time: z.string(),
+  check_out_time: z.string(),
+  amenities: z.array(z.string()),
+  property_type: z.enum(['hotel', 'resort', 'apartment', 'villa']),
+  chain: z.string().optional()
+})
+
+// Event ticket attributes
+const eventTicketAttributesSchema = z.object({
+  event_name: z.string().min(1),
+  event_date: z.string(),
+  venue_name: z.string().min(1),
+  venue_capacity: z.number().int().min(1),
+  event_type: z.enum(['sports', 'concert', 'exhibition', 'theater', 'other']),
+  gates_open_time: z.string(),
+  event_start_time: z.string()
+})
+
+// Tour attributes
+const tourAttributesSchema = z.object({
+  duration_hours: z.number().min(0),
+  duration_days: z.number().min(0),
+  meeting_point: z.string(),
+  meeting_time: z.string(),
+  end_point: z.string(),
+  tour_type: z.enum(['group', 'private', 'self_guided']),
+  inclusions: z.array(z.string()),
+  exclusions: z.array(z.string()),
+  max_group_size: z.number().int().min(1)
+})
+
+// Transfer attributes
+const transferAttributesSchema = z.object({
+  vehicle_type: z.enum(['sedan', 'suv', 'van', 'bus']),
+  max_passengers: z.number().int().min(1),
+  max_luggage: z.number().int().min(0),
+  from_location: z.string(),
+  to_location: z.string(),
+  distance_km: z.number().min(0),
+  duration_minutes: z.number().int().min(0),
+  transfer_type: z.enum(['airport', 'hotel', 'point_to_point'])
 })
 
 // Main product schema
 export const productSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  code: z.string().min(2, 'Code must be at least 2 characters').max(20, 'Code must be less than 20 characters'),
-  product_type_id: z.string().min(1, 'Product type is required'),
+  product_type_id: z.string().uuid('Please select a product type'),
+  name: z.string().min(3, 'Product name must be at least 3 characters'),
+  code: z.string().min(2).max(20),
   description: z.string().optional(),
   location: locationSchema,
-  attributes: productAttributesSchema,
+  attributes: z.any(),  // Validated based on product type
+  tags: z.array(z.string()).default([]),
+  media: z.array(imageSchema).default([]),
   is_active: z.boolean().default(true)
 })
 
 // Product option schema
 export const productOptionSchema = z.object({
-  option_name: z.string().min(1, 'Option name is required'),
-  option_code: z.string().min(1, 'Option code is required'),
-  standard_occupancy: z.number().min(1, 'Standard occupancy must be at least 1'),
-  max_occupancy: z.number().min(1, 'Max occupancy must be at least 1'),
+  option_name: z.string().min(2, 'Option name is required'),
+  option_code: z.string().min(2).max(20),
+  description: z.string().optional(),
+  standard_occupancy: z.number().int().min(1),
+  max_occupancy: z.number().int().min(1),
   bed_configuration: z.string().optional(),
+  attributes: z.any(),
+  sort_order: z.number().int().default(0),
   is_active: z.boolean().default(true)
+}).refine(data => data.max_occupancy >= data.standard_occupancy, {
+  message: 'Max occupancy must be >= standard occupancy',
+  path: ['max_occupancy']
 })
 
 // Selling rate schema
 export const sellingRateSchema = z.object({
   rate_name: z.string().min(1, 'Rate name is required'),
+  rate_code: z.string().min(1, 'Rate code is required'),
   valid_from: z.string().min(1, 'Valid from date is required'),
   valid_to: z.string().min(1, 'Valid to date is required'),
   rate_basis: z.enum(['per_room_per_night', 'per_ticket', 'per_person', 'per_booking']),
   currency: z.string().min(3, 'Currency must be 3 characters').max(3, 'Currency must be 3 characters'),
-  markup_type: z.enum(['fixed_amount', 'percentage']),
-  markup_value: z.number().min(0, 'Markup value must be positive'),
-  customer_type: z.enum(['B2C', 'B2B_agent', 'B2B_corporate']),
-  min_pax: z.number().min(1).optional(),
-  max_pax: z.number().min(1).optional(),
-  dow_mask: z.string().optional(),
-  priority: z.number().min(0, 'Priority must be non-negative'),
+  customer_type: z.enum(['b2c', 'b2b_agent', 'b2b_corporate']),
+  dow_mask: z.array(z.string()).default([]),
+  min_nights: z.number().int().min(0).optional(),
+  max_nights: z.number().int().min(0).optional(),
+  min_pax: z.number().int().min(0).optional(),
+  max_pax: z.number().int().min(0).optional(),
+  priority: z.number().int().min(0, 'Priority must be non-negative'),
   is_active: z.boolean().default(true)
 })
 
 // Product type schema
 export const productTypeSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  code: z.string().min(2, 'Code must be at least 2 characters'),
-  description: z.string().optional(),
-  icon: z.string().optional(),
+  type_name: z.enum(['hotel', 'event_ticket', 'tour', 'transfer']),
+  type_code: z.enum(['HTL', 'TKT', 'TOR', 'TRF']),
+  type_category: z.enum(['accommodation', 'activity', 'transport']),
+  attributes_schema: z.any(),
   is_active: z.boolean().default(true)
 })
 
@@ -121,3 +143,11 @@ export type SellingRateFormData = z.infer<typeof sellingRateSchema>
 export type ProductTypeFormData = z.infer<typeof productTypeSchema>
 export type ProductFilters = z.infer<typeof productFiltersSchema>
 export type ProductSort = z.infer<typeof productSortSchema>
+
+// Export individual attribute schemas
+export {
+  hotelAttributesSchema,
+  eventTicketAttributesSchema,
+  tourAttributesSchema,
+  transferAttributesSchema
+}

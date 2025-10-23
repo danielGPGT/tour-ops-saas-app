@@ -9,9 +9,7 @@ export async function getProducts(organizationId: string, filters?: ProductFilte
     .from('products')
     .select(`
       *,
-      product_types!inner(*),
-      product_options(*),
-      selling_rates(*)
+      product_type:product_types(*)
     `)
     .eq('organization_id', organizationId)
   
@@ -37,7 +35,7 @@ export async function getProducts(organizationId: string, filters?: ProductFilte
   }
   
   if (filters?.tags && filters.tags.length > 0) {
-    query = query.overlaps('attributes->tags', filters.tags)
+    query = query.overlaps('tags', filters.tags)
   }
   
   // Apply sorting
@@ -61,9 +59,7 @@ export async function getProduct(id: string) {
     .from('products')
     .select(`
       *,
-      product_types!inner(*),
-      product_options(*),
-      selling_rates(*)
+      product_type:product_types(*)
     `)
     .eq('id', id)
     .single()
@@ -78,13 +74,13 @@ export async function createProduct(product: Partial<Product>) {
   
   const { data, error } = await supabase
     .from('products')
-    .insert(product)
-    .select(`
-      *,
-      product_types!inner(*),
-      product_options(*),
-      selling_rates(*)
-    `)
+    .insert({
+      ...product,
+      media: [], // Start with empty media - will be uploaded separately
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .select()
     .single()
   
   if (error) throw error
@@ -101,9 +97,7 @@ export async function updateProduct(id: string, updates: Partial<Product>) {
     .eq('id', id)
     .select(`
       *,
-      product_types!inner(*),
-      product_options(*),
-      selling_rates(*)
+      product_type:product_types(*)
     `)
     .single()
   
@@ -113,7 +107,14 @@ export async function updateProduct(id: string, updates: Partial<Product>) {
 
 // Delete product (soft delete)
 export async function deleteProduct(id: string) {
-  const supabase = createClient()
+  let supabase
+  try {
+    supabase = createClient()
+    console.log('Supabase client created successfully for delete')
+  } catch (error) {
+    console.error('Error creating Supabase client for delete:', error)
+    throw new Error('Failed to create Supabase client for delete')
+  }
   
   const { error } = await supabase
     .from('products')
@@ -124,15 +125,14 @@ export async function deleteProduct(id: string) {
 }
 
 // Get product types
-export async function getProductTypes(organizationId: string) {
+export async function getProductTypes() {
   const supabase = createClient()
   
   const { data, error } = await supabase
     .from('product_types')
     .select('*')
-    .eq('organization_id', organizationId)
     .eq('is_active', true)
-    .order('name')
+    .order('type_name')
   
   if (error) throw error
   return data as ProductType[]
@@ -160,8 +160,7 @@ export async function getProductOptions(productId: string) {
     .from('product_options')
     .select('*')
     .eq('product_id', productId)
-    .eq('is_active', true)
-    .order('option_name')
+    .order('sort_order')
   
   if (error) throw error
   return data as ProductOption[]
@@ -270,7 +269,7 @@ export async function getProductStats(organizationId: string) {
   
   const { data, error } = await supabase
     .from('products')
-    .select('is_active, product_type_id, product_types(name)')
+    .select('is_active, product_type_id, product_type:product_types(type_name)')
     .eq('organization_id', organizationId)
   
   if (error) throw error
@@ -280,7 +279,7 @@ export async function getProductStats(organizationId: string) {
     activeCount: data.filter(p => p.is_active).length,
     inactiveCount: data.filter(p => !p.is_active).length,
     byType: data.reduce((acc, product) => {
-      const typeName = product.product_types?.name || 'Unknown'
+      const typeName = product.product_type?.type_name || 'Unknown'
       acc[typeName] = (acc[typeName] || 0) + 1
       return acc
     }, {} as Record<string, number>)

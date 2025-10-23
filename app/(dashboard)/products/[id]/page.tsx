@@ -9,7 +9,10 @@ import { Button } from '@/components/ui/button'
 import { InfoCard } from '@/components/common/InfoCard'
 import { StatsGrid } from '@/components/common/StatsGrid'
 import { PageHeader } from '@/components/common/PageHeader'
-import { useProduct, useDeleteProduct } from '@/lib/hooks/useProducts'
+import { EnterpriseInlineEdit, InlineTextEdit, InlineTextareaEdit, InlineSelectEdit } from '@/components/common/EnterpriseInlineEdit'
+import { TagsEditor } from '@/components/common/TagsEditor'
+import { ActivityLog } from '@/components/common/ActivityLog'
+import { useProduct, useDeleteProduct, useUpdateProduct } from '@/lib/hooks/useProducts'
 import { EventToast, showSuccess, showError } from '@/components/common/EventToast'
 import { 
   MapPin, 
@@ -37,6 +40,7 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
   const { id } = use(params)
   const { data: product, isLoading, error } = useProduct(id)
   const deleteProduct = useDeleteProduct()
+  const updateProduct = useUpdateProduct()
 
   const handleEdit = () => {
     router.push(`/products/${id}/edit`)
@@ -52,16 +56,83 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
     }
   }
 
+  const handleFieldUpdate = async (field: string, value: any) => {
+    try {
+      await updateProduct.mutateAsync({
+        id,
+        data: { [field]: value }
+      })
+      showSuccess('Product updated successfully')
+    } catch (error) {
+      showError('Failed to update product')
+      throw error
+    }
+  }
+
+  const handleLocationUpdate = async (locationField: string, value: any) => {
+    try {
+      const updatedLocation = {
+        ...product?.location,
+        [locationField]: value
+      }
+      await updateProduct.mutateAsync({
+        id,
+        data: { location: updatedLocation }
+      })
+      showSuccess('Location updated successfully')
+    } catch (error) {
+      showError('Failed to update location')
+      throw error
+    }
+  }
+
+  const handleTagsUpdate = async (tags: string[]) => {
+    try {
+      await updateProduct.mutateAsync({
+        id,
+        data: { tags }
+      })
+      showSuccess('Tags updated successfully')
+    } catch (error) {
+      showError('Failed to update tags')
+      throw error
+    }
+  }
+
+  const handleAttributeUpdate = async (attributeField: string, value: any) => {
+    try {
+      const updatedAttributes = {
+        ...product?.attributes,
+        [attributeField]: value
+      }
+      await updateProduct.mutateAsync({
+        id,
+        data: { attributes: updatedAttributes }
+      })
+      showSuccess('Attribute updated successfully')
+    } catch (error) {
+      showError('Failed to update attribute')
+      throw error
+    }
+  }
+
   const getProductTypeIcon = (typeName: string) => {
     switch (typeName?.toLowerCase()) {
-      case 'hotel':
+      case 'accommodation':
         return <Star className="h-5 w-5" />
-      case 'event_ticket':
+      case 'event':
+      case 'tickets & passes':
         return <Ticket className="h-5 w-5" />
-      case 'tour':
+      case 'activity':
+      case 'activities & experiences':
         return <Clock className="h-5 w-5" />
       case 'transfer':
+      case 'transfers':
         return <Car className="h-5 w-5" />
+      case 'package':
+        return <Package className="h-5 w-5" />
+      case 'extras & add-ons':
+        return <Package className="h-5 w-5" />
       default:
         return <Package className="h-5 w-5" />
     }
@@ -69,14 +140,21 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
 
   const getProductTypeColor = (typeName: string) => {
     switch (typeName?.toLowerCase()) {
-      case 'hotel':
+      case 'accommodation':
         return 'bg-blue-100 text-blue-800'
-      case 'event_ticket':
+      case 'event':
+      case 'tickets & passes':
         return 'bg-purple-100 text-purple-800'
-      case 'tour':
+      case 'activity':
+      case 'activities & experiences':
         return 'bg-green-100 text-green-800'
       case 'transfer':
+      case 'transfers':
         return 'bg-orange-100 text-orange-800'
+      case 'package':
+        return 'bg-pink-100 text-pink-800'
+      case 'extras & add-ons':
+        return 'bg-indigo-100 text-indigo-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -160,7 +238,7 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="options">Options</TabsTrigger>
           <TabsTrigger value="rates">Selling Rates</TabsTrigger>
-          <TabsTrigger value="seo">SEO</TabsTrigger>
+          <TabsTrigger value="allocations">Allocations</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -172,28 +250,50 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
               icon={<Package className="h-4 w-4" />}
             >
               <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
+                <div className="space-y-2">
                   <span className="text-sm font-medium text-muted-foreground">Product Name</span>
-                  <span className="text-sm font-medium">{product.name}</span>
+                  <InlineTextEdit
+                    value={product.name}
+                    onSave={(value) => handleFieldUpdate('name', value)}
+                    placeholder="Enter product name"
+                  />
                 </div>
-                <div className="flex items-center justify-between py-2">
+                <div className="space-y-2">
                   <span className="text-sm font-medium text-muted-foreground">Product Code</span>
-                  <span className="text-sm">{product.code}</span>
+                  <InlineTextEdit
+                    value={product.code}
+                    onSave={(value) => handleFieldUpdate('code', value)}
+                    placeholder="Enter product code"
+                  />
                 </div>
-                <div className="flex items-center justify-between py-2">
+                <div className="space-y-2">
                   <span className="text-sm font-medium text-muted-foreground">Product Type</span>
                   <div className="flex items-center gap-2">
-                    {getProductTypeIcon(product.product_type?.name || '')}
-                    <Badge className={getProductTypeColor(product.product_type?.name || '')}>
-                      {product.product_type?.name || 'Unknown'}
+                    {getProductTypeIcon(product.product_type?.type_name || '')}
+                    <Badge className={getProductTypeColor(product.product_type?.type_name || '')}>
+                      {product.product_type?.type_name || 'Unknown'}
                     </Badge>
                   </div>
                 </div>
-                <div className="flex items-center justify-between py-2">
+                <div className="space-y-2">
+                  <span className="text-sm font-medium text-muted-foreground">Description</span>
+                  <InlineTextareaEdit
+                    value={product.description || ''}
+                    onSave={(value) => handleFieldUpdate('description', value)}
+                    placeholder="Enter product description"
+                    rows={2}
+                  />
+                </div>
+                <div className="space-y-2">
                   <span className="text-sm font-medium text-muted-foreground">Status</span>
-                  <Badge className={product.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                    {product.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
+                  <InlineSelectEdit
+                    value={product.is_active ? 'active' : 'inactive'}
+                    options={[
+                      { value: 'active', label: 'Active' },
+                      { value: 'inactive', label: 'Inactive' }
+                    ]}
+                    onSave={(value) => handleFieldUpdate('is_active', value === 'active')}
+                  />
                 </div>
                 <div className="flex items-center justify-between py-2">
                   <span className="text-sm font-medium text-muted-foreground">Created</span>
@@ -208,28 +308,48 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
               icon={<MapPin className="h-4 w-4" />}
             >
               <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm font-medium text-muted-foreground">Address</span>
-                  <span className="text-sm">{product.location?.address || 'Not specified'}</span>
-                </div>
-                <div className="flex items-center justify-between py-2">
+                <div className="space-y-2">
                   <span className="text-sm font-medium text-muted-foreground">City</span>
-                  <span className="text-sm">{product.location?.city || 'Not specified'}</span>
+                  <InlineTextEdit
+                    value={product.location?.city || ''}
+                    onSave={(value) => handleLocationUpdate('city', value)}
+                    placeholder="Enter city"
+                  />
                 </div>
-                <div className="flex items-center justify-between py-2">
+                <div className="space-y-2">
                   <span className="text-sm font-medium text-muted-foreground">Country</span>
-                  <span className="text-sm">{product.location?.country || 'Not specified'}</span>
+                  <InlineTextEdit
+                    value={product.location?.country || ''}
+                    onSave={(value) => handleLocationUpdate('country', value)}
+                    placeholder="Enter country"
+                  />
                 </div>
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm font-medium text-muted-foreground">Postal Code</span>
-                  <span className="text-sm">{product.location?.postal_code || 'Not specified'}</span>
+                <div className="space-y-2">
+                  <span className="text-sm font-medium text-muted-foreground">Address</span>
+                  <InlineTextEdit
+                    value={product.location?.address || ''}
+                    onSave={(value) => handleLocationUpdate('address', value)}
+                    placeholder="Enter address"
+                  />
                 </div>
-                {product.location?.venue_name && (
-                  <div className="flex items-center justify-between py-2">
-                    <span className="text-sm font-medium text-muted-foreground">Venue</span>
-                    <span className="text-sm">{product.location.venue_name}</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-muted-foreground">Latitude</span>
+                    <InlineTextEdit
+                      value={product.location?.lat?.toString() || ''}
+                      onSave={(value) => handleLocationUpdate('lat', parseFloat(value) || null)}
+                      placeholder="Latitude"
+                    />
                   </div>
-                )}
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-muted-foreground">Longitude</span>
+                    <InlineTextEdit
+                      value={product.location?.lng?.toString() || ''}
+                      onSave={(value) => handleLocationUpdate('lng', parseFloat(value) || null)}
+                      placeholder="Longitude"
+                    />
+                  </div>
+                </div>
               </div>
             </InfoCard>
           </div>
@@ -238,14 +358,14 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                {getProductTypeIcon(product.product_type?.name || '')}
+                {getProductTypeIcon(product.product_type?.type_name || '')}
                 Product Attributes
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Hotel specific attributes */}
-                {product.product_type?.name?.toLowerCase() === 'hotel' && (
+                {/* Accommodation specific attributes */}
+                {product.product_type?.type_name?.toLowerCase() === 'accommodation' && (
                   <>
                     {product.attributes?.star_rating && (
                       <div className="flex items-center gap-2">
@@ -282,7 +402,7 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
                 )}
 
                 {/* Event specific attributes */}
-                {product.product_type?.name?.toLowerCase() === 'event_ticket' && (
+                {(product.product_type?.type_name?.toLowerCase() === 'event' || product.product_type?.type_name?.toLowerCase() === 'tickets & passes') && (
                   <>
                     {product.attributes?.event_date && (
                       <div className="flex items-center gap-2">
@@ -312,8 +432,8 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
                   </>
                 )}
 
-                {/* Tour specific attributes */}
-                {product.product_type?.name?.toLowerCase() === 'tour' && (
+                {/* Activity specific attributes */}
+                {(product.product_type?.type_name?.toLowerCase() === 'activity' || product.product_type?.type_name?.toLowerCase() === 'activities & experiences') && (
                   <>
                     {product.attributes?.duration_hours && (
                       <div className="flex items-center gap-2">
@@ -350,7 +470,7 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
                 )}
 
                 {/* Transfer specific attributes */}
-                {product.product_type?.name?.toLowerCase() === 'transfer' && (
+                {(product.product_type?.type_name?.toLowerCase() === 'transfer' || product.product_type?.type_name?.toLowerCase() === 'transfers') && (
                   <>
                     {product.attributes?.vehicle_type && (
                       <div className="flex items-center gap-2">
@@ -374,6 +494,54 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
                   </>
                 )}
 
+                {/* Package specific attributes */}
+                {product.product_type?.type_name?.toLowerCase() === 'package' && (
+                  <>
+                    {product.attributes?.package_type && (
+                      <div>
+                        <span className="font-medium">Package Type:</span>
+                        <span className="ml-2">{product.attributes.package_type}</span>
+                      </div>
+                    )}
+                    {product.attributes?.duration_nights && (
+                      <div>
+                        <span className="font-medium">Duration:</span>
+                        <span className="ml-2">{product.attributes.duration_nights} nights</span>
+                      </div>
+                    )}
+                    {product.attributes?.min_guests && (
+                      <div>
+                        <span className="font-medium">Min Guests:</span>
+                        <span className="ml-2">{product.attributes.min_guests}</span>
+                      </div>
+                    )}
+                    {product.attributes?.max_guests && (
+                      <div>
+                        <span className="font-medium">Max Guests:</span>
+                        <span className="ml-2">{product.attributes.max_guests}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Extras & Add-ons specific attributes */}
+                {product.product_type?.type_name?.toLowerCase() === 'extras & add-ons' && (
+                  <>
+                    {product.attributes?.extra_category && (
+                      <div>
+                        <span className="font-medium">Category:</span>
+                        <span className="ml-2">{product.attributes.extra_category}</span>
+                      </div>
+                    )}
+                    {product.attributes?.description && (
+                      <div className="col-span-full">
+                        <span className="font-medium">Description:</span>
+                        <p className="ml-2 text-sm text-muted-foreground">{product.attributes.description}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {/* Common attributes */}
                 {product.attributes?.tags && product.attributes.tags.length > 0 && (
                   <div className="col-span-full">
@@ -390,6 +558,30 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
               </div>
             </CardContent>
           </Card>
+
+          {/* Tags Editor */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Tag className="h-5 w-5" />
+                Tags
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TagsEditor
+                tags={product.tags || []}
+                onChange={handleTagsUpdate}
+                placeholder="Add a tag"
+                maxTags={20}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Activity Log */}
+          <ActivityLog
+            activities={[]} // TODO: Implement activity log data
+            maxHeight="300px"
+          />
         </TabsContent>
 
         {/* Options Tab */}
@@ -507,29 +699,18 @@ export default function ProductDetailsPage({ params }: ProductDetailsPageProps) 
           </Card>
         </TabsContent>
 
-        {/* SEO Tab */}
-        <TabsContent value="seo" className="space-y-6">
+        {/* Allocations Tab */}
+        <TabsContent value="allocations" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>SEO Settings</CardTitle>
+              <CardTitle>Contract Allocations</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <span className="font-medium">SEO Title:</span>
-                <p className="text-muted-foreground mt-1">
-                  {product.attributes?.seo_title || 'Not set'}
-                </p>
-              </div>
-              <div>
-                <span className="font-medium">SEO Description:</span>
-                <p className="text-muted-foreground mt-1">
-                  {product.attributes?.seo_description || 'Not set'}
-                </p>
-              </div>
-              <div>
-                <span className="font-medium">URL Slug:</span>
-                <p className="text-muted-foreground mt-1">
-                  {product.attributes?.slug || 'Not set'}
+            <CardContent>
+              <div className="text-center py-8">
+                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold">No Allocations Yet</h3>
+                <p className="text-muted-foreground">
+                  Contract allocations will appear here when contracts are linked to this product.
                 </p>
               </div>
             </CardContent>

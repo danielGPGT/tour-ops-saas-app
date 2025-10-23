@@ -1,112 +1,60 @@
-#!/usr/bin/env node
+// Test database connection and create missing organization
+const { createClient } = require('@supabase/supabase-js');
 
-/**
- * Database Connection Test Script
- * 
- * This script tests the database connection and helps diagnose issues.
- * Run with: node scripts/test-db-connection.js
- */
+// You'll need to replace these with your actual values
+const supabaseUrl = 'https://xvltzkjylpinswdhfsaa.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'your-service-role-key-here';
 
-const { PrismaClient } = require('@prisma/client');
-require('dotenv').config({ path: '.env.local' });
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function testDatabaseConnection() {
-  console.log('🔍 Testing Database Connection...\n');
-
-  // Check environment variables
-  console.log('📋 Environment Variables:');
-  console.log(`   DATABASE_URL: ${process.env.DATABASE_URL ? '✅ Set' : '❌ Missing'}`);
-  console.log(`   NEXT_PUBLIC_SUPABASE_URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? '✅ Set' : '❌ Missing'}`);
-  console.log(`   NEXT_PUBLIC_SUPABASE_ANON_KEY: ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✅ Set' : '❌ Missing'}\n`);
-
-  if (!process.env.DATABASE_URL) {
-    console.error('❌ DATABASE_URL is not set. Please check your .env.local file.');
-    process.exit(1);
-  }
-
-  // Parse DATABASE_URL to check format
-  try {
-    const url = new URL(process.env.DATABASE_URL);
-    console.log('🔗 Database URL Analysis:');
-    console.log(`   Protocol: ${url.protocol}`);
-    console.log(`   Host: ${url.hostname}`);
-    console.log(`   Port: ${url.port}`);
-    console.log(`   Database: ${url.pathname.slice(1)}`);
-    console.log(`   Has pgbouncer: ${url.searchParams.get('pgbouncer')}`);
-    console.log(`   Connection limit: ${url.searchParams.get('connection_limit')}\n`);
-  } catch (e) {
-    console.error('❌ Invalid DATABASE_URL format:', e.message);
-    process.exit(1);
-  }
-
-  // Test Prisma connection
-  console.log('🔌 Testing Prisma Connection...');
-  const prisma = new PrismaClient({
-    log: ['error'],
-  });
-
+async function testConnection() {
+  console.log('Testing database connection...');
+  
   try {
     // Test basic connection
-    console.log('   Connecting to database...');
-    await prisma.$connect();
-    console.log('   ✅ Connected successfully');
-
-    // Test simple query
-    console.log('   Running test query...');
-    const result = await prisma.$queryRaw`SELECT 1 as test`;
-    console.log('   ✅ Query executed successfully:', result);
-
-    // Test organizations table
-    console.log('   Testing organizations table...');
-    try {
-      const orgCount = await prisma.organizations.count();
-      console.log(`   ✅ Organizations table accessible (${orgCount} records)`);
-    } catch (e) {
-      console.log('   ⚠️  Organizations table not accessible:', e.message);
-      console.log('   💡 Run "npx prisma db push" to create the schema');
+    const { data, error } = await supabase.from('organizations').select('count').limit(1);
+    if (error) {
+      console.error('Database connection error:', error);
+      return;
     }
-
-    // Test suppliers table
-    console.log('   Testing suppliers table...');
-    try {
-      const supplierCount = await prisma.suppliers.count();
-      console.log(`   ✅ Suppliers table accessible (${supplierCount} records)`);
-    } catch (e) {
-      console.log('   ⚠️  Suppliers table not accessible:', e.message);
-      console.log('   💡 Run "npx prisma db push" to create the schema');
+    console.log('Database connection successful');
+    
+    // Check if organization exists
+    const orgId = '11111111-1111-1111-1111-111111111111';
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', orgId)
+      .single();
+    
+    if (orgError && orgError.code === 'PGRST116') {
+      console.log('Organization not found, creating it...');
+      
+      const { data: newOrg, error: createError } = await supabase
+        .from('organizations')
+        .insert({
+          id: orgId,
+          name: 'Grand Prix Grand Tours',
+          slug: 'grandprix-grandtours',
+          is_active: true
+        })
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error('Error creating organization:', createError);
+      } else {
+        console.log('Organization created:', newOrg);
+      }
+    } else if (orgError) {
+      console.error('Error checking organization:', orgError);
+    } else {
+      console.log('Organization exists:', org);
     }
-
-    // Test contracts table
-    console.log('   Testing contracts table...');
-    try {
-      const contractCount = await prisma.contracts.count();
-      console.log(`   ✅ Contracts table accessible (${contractCount} records)`);
-    } catch (e) {
-      console.log('   ⚠️  Contracts table not accessible:', e.message);
-      console.log('   💡 Run "npx prisma db push" to create the schema');
-    }
-
-    console.log('\n🎉 Database connection test completed successfully!');
-
+    
   } catch (error) {
-    console.error('\n❌ Database connection failed:');
-    console.error('   Error:', error.message);
-    
-    if (error.message.includes('Can\'t reach database server')) {
-      console.error('\n🔧 Troubleshooting suggestions:');
-      console.error('   1. Check if your Supabase project is active');
-      console.error('   2. Verify your DATABASE_URL is correct');
-      console.error('   3. Ensure your IP is not blocked');
-      console.error('   4. Try using the pooler connection string');
-      console.error('   5. Check Supabase status at https://status.supabase.com');
-    }
-    
-    process.exit(1);
-  } finally {
-    await prisma.$disconnect();
-    console.log('   🔌 Disconnected from database');
+    console.error('Test failed:', error);
   }
 }
 
-// Run the test
-testDatabaseConnection().catch(console.error);
+testConnection();
