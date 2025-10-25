@@ -32,15 +32,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { X } from 'lucide-react'
+import { X, Upload, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { useCreateProductOption, useUpdateProductOption } from '@/lib/hooks/useProductOptions'
 import { eventOptionSchema, type EventOptionFormData } from '@/lib/validations/product-option.schema'
 import type { ProductOption } from '@/lib/types/product-option'
+import { StorageService } from '@/lib/storage'
 
 // Configuration data
 const TICKET_TYPES = [
   'seated',
   'standing', 
+  'grandstand',
   'vip_lounge',
   'hospitality',
   'general'
@@ -89,12 +91,18 @@ export function EventOptionForm({
 }: EventOptionFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedIncludes, setSelectedIncludes] = useState<string[]>([])
+  const [images, setImages] = useState<Array<{
+    url: string
+    alt: string
+    is_primary: boolean
+  }>>([])
+  const [uploadingImages, setUploadingImages] = useState(false)
   const createOption = useCreateProductOption()
   const updateOption = useUpdateProductOption()
   
   const isEditing = !!option?.id
 
-  const form = useForm<EventOptionFormData>({
+  const form = useForm({
     resolver: zodResolver(eventOptionSchema),
     defaultValues: {
       option_name: option?.option_name || '',
@@ -104,6 +112,7 @@ export function EventOptionForm({
       section: (option?.attributes as any)?.section || '',
       seat_details: (option?.attributes as any)?.seat_details || '',
       access_level: (option?.attributes as any)?.access_level || 'general',
+      valid_days: (option?.attributes as any)?.valid_days || 1,
       includes: (option?.attributes as any)?.includes || [],
       base_price_hint: (option?.attributes as any)?.base_price_hint || undefined,
       currency: (option?.attributes as any)?.currency || 'USD',
@@ -122,6 +131,7 @@ export function EventOptionForm({
         section: (option.attributes as any)?.section || '',
         seat_details: (option.attributes as any)?.seat_details || '',
         access_level: (option.attributes as any)?.access_level || 'general',
+        valid_days: (option.attributes as any)?.valid_days || 1,
         includes: (option.attributes as any)?.includes || [],
         base_price_hint: (option.attributes as any)?.base_price_hint || undefined,
         currency: (option.attributes as any)?.currency || 'USD',
@@ -130,6 +140,9 @@ export function EventOptionForm({
       
       const initialIncludes = (option.attributes as any)?.includes || []
       setSelectedIncludes(initialIncludes)
+      
+      // Set images from option attributes
+      setImages((option.attributes as any)?.images || [])
     }
   }, [option, form])
 
@@ -138,6 +151,8 @@ export function EventOptionForm({
     if (!option) {
       setSelectedIncludes([])
       form.setValue('includes', [])
+      // Clear images for new option
+      setImages([])
     }
   }, [option, form])
 
@@ -168,22 +183,94 @@ export function EventOptionForm({
     form.setValue('includes', newIncludes)
   }
 
-  const onSubmit = async (data: EventOptionFormData) => {
+  // Image upload functions
+  const handleImageUpload = async (files: FileList) => {
+    if (images.length + files.length > 5) {
+      alert('Maximum 5 images allowed')
+      return
+    }
+
+    setUploadingImages(true)
+    try {
+      // Convert FileList to File array
+      const fileArray = Array.from(files)
+      
+      // Upload images using StorageService
+      const uploadedImages = await StorageService.uploadImagesToStorage(
+        fileArray, 
+        productId
+      )
+      
+      // Set primary image (first uploaded image becomes primary if no images exist)
+      const imagesWithPrimary = uploadedImages.map((img, index) => ({
+        ...img,
+        is_primary: images.length === 0 && index === 0
+      }))
+      
+      setImages(prev => [...prev, ...imagesWithPrimary])
+    } catch (error) {
+      console.error('Image upload failed:', error)
+      alert('Failed to upload images')
+    } finally {
+      setUploadingImages(false)
+    }
+  }
+
+  const removeImage = async (index: number) => {
+    const imageToRemove = images[index]
+    
+    try {
+      // Delete from storage if it's a real uploaded image (not blob URL)
+      if (imageToRemove.url && !imageToRemove.url.startsWith('blob:')) {
+        await StorageService.deleteImage(imageToRemove.url)
+      }
+      
+      setImages(prev => {
+        const newImages = prev.filter((_, i) => i !== index)
+        // If we removed the primary image, make the first remaining image primary
+        if (index === 0 && newImages.length > 0) {
+          newImages[0].is_primary = true
+        }
+        return newImages
+      })
+    } catch (error) {
+      console.error('Error deleting image:', error)
+      // Still remove from UI even if storage deletion fails
+      setImages(prev => {
+        const newImages = prev.filter((_, i) => i !== index)
+        if (index === 0 && newImages.length > 0) {
+          newImages[0].is_primary = true
+        }
+        return newImages
+      })
+    }
+  }
+
+  const setPrimaryImage = (index: number) => {
+    setImages(prev => prev.map((img, i) => ({
+      ...img,
+      is_primary: i === index
+    })))
+  }
+
+  const onSubmit = async (data: any) => {
     setIsSubmitting(true)
     try {
-      // Build attributes object
+      // Build attributes object (including images)
       const attributes: any = {
         ticket_type: data.ticket_type,
         section: data.section,
         seat_details: data.seat_details,
         access_level: data.access_level,
+        valid_days: data.valid_days,
         includes: data.includes,
         base_price_hint: data.base_price_hint,
-        currency: data.currency
+        currency: data.currency,
+        images: images // Store images in attributes
       }
 
       // Remove attributes from root data
-      const { ticket_type, section, seat_details, access_level, includes, base_price_hint, currency, ...baseData } = data
+      const { ticket_type, section, seat_details, access_level, valid_days, includes, base_price_hint, currency, ...baseData } = data
       
       if (isEditing) {
         await updateOption.mutateAsync({
@@ -204,6 +291,7 @@ export function EventOptionForm({
       
       form.reset()
       setSelectedIncludes([])
+      setImages([])
       onOpenChange(false)
     } catch (error) {
       console.error('Error saving option:', error)
@@ -308,7 +396,7 @@ export function EventOptionForm({
                         <SelectContent>
                           {TICKET_TYPES.map((type) => (
                             <SelectItem key={type} value={type}>
-                              {type.replace('_', ' ').toUpperCase()}
+                              {type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -333,7 +421,7 @@ export function EventOptionForm({
                         <SelectContent>
                           {ACCESS_LEVELS.map((level) => (
                             <SelectItem key={level} value={level}>
-                              {level.toUpperCase()}
+                              {level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -368,10 +456,37 @@ export function EventOptionForm({
                       <FormLabel>Seat Details</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="e.g., Row 10, Seats 5-8"
+                          placeholder="e.g., Row 10, Seats 5-8 (if applicable)"
                           {...field} 
                         />
                       </FormControl>
+                      <FormDescription className="text-xs">
+                        Only for events with assigned seating
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="valid_days"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valid Days</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number"
+                          min="1"
+                          max="30"
+                          placeholder="1"
+                          {...field}
+                          onChange={e => field.onChange(parseInt(e.target.value) || 1)}
+                        />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Number of days this ticket is valid (1-30)
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -474,6 +589,92 @@ export function EventOptionForm({
                     </FormItem>
                   )}
                 />
+              </div>
+            </div>
+
+            {/* Images */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Images</h4>
+              <div className="space-y-4">
+                {/* Upload Area */}
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => e.target.files && handleImageUpload(e.target.files)}
+                    className="hidden"
+                    id="image-upload"
+                    disabled={uploadingImages || images.length >= 5}
+                  />
+                  <label
+                    htmlFor="image-upload"
+                    className={`cursor-pointer flex flex-col items-center gap-2 ${
+                      uploadingImages || images.length >= 5 ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-75'
+                    }`}
+                  >
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <div className="text-sm">
+                      {uploadingImages ? (
+                        'Uploading...'
+                      ) : images.length >= 5 ? (
+                        'Maximum 5 images reached'
+                      ) : (
+                        `Upload images (${images.length}/5)`
+                      )}
+                    </div>
+                  </label>
+                </div>
+
+                {/* Image Grid */}
+                {images.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {images.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <div className="aspect-square rounded-lg overflow-hidden border">
+                          <img
+                            src={image.url}
+                            alt={image.alt}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        
+                        {/* Primary Badge */}
+                        {image.is_primary && (
+                          <div className="absolute top-2 left-2">
+                            <Badge variant="default" className="text-xs">
+                              Primary
+                            </Badge>
+                          </div>
+                        )}
+                        
+                        {/* Actions */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1">
+                            {!image.is_primary && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-6 w-6 p-0"
+                                onClick={() => setPrimaryImage(index)}
+                              >
+                                <ImageIcon className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-6 w-6 p-0"
+                              onClick={() => removeImage(index)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

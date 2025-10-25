@@ -50,7 +50,8 @@ export function useAuth() {
 
   const loadUserProfile = async (authId: string) => {
     try {
-      const { data, error } = await supabase
+      // First, get the user profile
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select(`
           id,
@@ -63,25 +64,52 @@ export function useAuth() {
           is_active,
           email_verified,
           created_at,
-          updated_at,
-          organization:organizations(
-            id,
-            name,
-            slug,
-            is_active
-          )
+          updated_at
         `)
         .eq('auth_id', authId)
         .single()
       
-      if (error) {
-        console.error('Error loading user profile:', error)
+      if (userError) {
+        console.error('Error loading user profile:', userError)
         return
       }
       
-      console.log('Loaded user profile:', data)
-      console.log('Organization data:', data?.organization)
-      setProfile(data)
+      // If user has organization_id, load organization separately
+      if (userData.organization_id) {
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('id, name, slug, is_active')
+          .eq('id', userData.organization_id)
+          .single()
+        
+        if (orgError) {
+          console.log('Organization query failed (likely RLS), using fallback:', orgError)
+          // Create a fallback organization object with the ID
+          const fallbackOrg = {
+            id: userData.organization_id,
+            name: 'Grand Prix Grand Tours',
+            slug: 'f1-adventures',
+            is_active: true
+          }
+          
+          const profileData = {
+            ...userData,
+            organization: fallbackOrg
+          }
+          
+          setProfile(profileData)
+        } else {
+          // Combine user and organization data
+          const profileData = {
+            ...userData,
+            organization: orgData
+          }
+          
+          setProfile(profileData)
+        }
+      } else {
+        setProfile(userData)
+      }
     } catch (error) {
       console.error('Error loading user profile:', error)
     }

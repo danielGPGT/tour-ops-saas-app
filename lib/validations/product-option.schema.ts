@@ -12,10 +12,10 @@ const baseOptionSchema = z.object({
 
 // Accommodation option schema
 export const accommodationOptionSchema = baseOptionSchema.extend({
-  bed_configuration: z.string().min(1, 'Bed configuration is required'),
-  room_size_sqm: z.number().min(1).max(500).optional(),
+  bed_type: z.enum(['King', 'Queen', 'Single', 'Twin', 'Double']),
+  bed_quantity: z.enum(['1', '2', '3', '4']),
+  additional_bed: z.enum(['None', 'Sofa Bed', 'Extra Bed']),
   view_type: z.string().optional(),
-  floor_range: z.string().optional(),
   standard_occupancy: z.number().int().min(1).max(20),
   max_occupancy: z.number().int().min(1).max(20),
   amenities: z.array(z.string()).optional()
@@ -26,24 +26,20 @@ export const accommodationOptionSchema = baseOptionSchema.extend({
 
 // Event option schema
 export const eventOptionSchema = baseOptionSchema.extend({
-  ticket_type: z.enum(['seated', 'standing', 'vip_lounge', 'hospitality', 'general']),
+  ticket_type: z.enum(['seated', 'standing', 'grandstand', 'vip_lounge', 'hospitality', 'general']),
   section: z.string().optional(),
   seat_details: z.string().optional(),
   access_level: z.enum(['general', 'vip', 'premium', 'hospitality', 'backstage']),
+  valid_days: z.number().int().min(1).max(30).default(1),
   includes: z.array(z.string()).optional()
 })
 
 // Transfer option schema
 export const transferOptionSchema = baseOptionSchema.extend({
-  vehicle_type: z.enum(['sedan', 'suv', 'van', 'minibus', 'bus', 'luxury', 'limousine']),
+  vehicle_type: z.enum(['sedan', 'suv', 'MPV', 'van', 'minibus', 'bus', 'Coach', 'luxury', 'limousine']),
   max_passengers: z.number().int().min(1).max(60),
-  max_luggage: z.number().int().min(0).max(100),
   vehicle_features: z.array(z.string()).optional(),
-  vehicle_class: z.enum(['economy', 'business', 'luxury', 'premium']).optional(),
-  standard_occupancy: z.number().int().min(1).max(60)
-}).refine(data => data.max_passengers >= data.standard_occupancy, {
-  message: 'Max passengers must be >= standard occupancy',
-  path: ['max_passengers']
+  vehicle_class: z.enum(['economy', 'business', 'luxury', 'premium']).optional()
 })
 
 // Activity option schema

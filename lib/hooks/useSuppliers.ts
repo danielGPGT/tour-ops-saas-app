@@ -8,7 +8,7 @@ export function useSuppliers() {
   
   return useQuery({
     queryKey: ['suppliers', profile?.organization_id],
-    queryFn: () => supplierQueries.getSuppliers(profile!.organization_id),
+    queryFn: () => supplierQueries.getSuppliers(profile?.organization_id || ''),
     enabled: !!profile?.organization_id
   })
 }
@@ -26,7 +26,7 @@ export function useSupplierStats() {
   
   return useQuery({
     queryKey: ['supplier-stats', profile?.organization_id],
-    queryFn: () => supplierQueries.getSupplierStats(profile!.organization_id),
+    queryFn: () => supplierQueries.getSupplierStats(profile?.organization_id || ''),
     enabled: !!profile?.organization_id
   })
 }
@@ -83,7 +83,7 @@ export function useSearchSuppliers(query: string) {
   
   return useQuery({
     queryKey: ['suppliers', 'search', query],
-    queryFn: () => supplierQueries.searchSuppliers(profile!.organization_id, query),
+    queryFn: () => supplierQueries.searchSuppliers(profile?.organization_id || '', query),
     enabled: !!profile?.organization_id && query.length >= 2
   })
 }

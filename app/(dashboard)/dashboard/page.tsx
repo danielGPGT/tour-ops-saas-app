@@ -1,12 +1,12 @@
 'use client'
 
-import { useUser } from '@/lib/hooks/useUser'
+import { useAuth } from '@/lib/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Users, DollarSign, Calendar, Package } from 'lucide-react'
 
 export default function DashboardPage() {
-  const { user, organization, loading } = useUser()
+  const { profile, loading } = useAuth()
 
   if (loading) {
     return (
@@ -16,7 +16,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (!user || !organization) {
+  if (!profile) {
     return (
       <div className="text-center py-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Welcome!</h2>
@@ -25,17 +25,18 @@ export default function DashboardPage() {
     )
   }
 
+
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Welcome back, {user.first_name}!
+            Welcome back, {profile.first_name}!
           </h1>
-          <p className="text-gray-600 mt-1">
-            {organization.name} • <Badge variant="secondary">{user.role}</Badge>
-          </p>
+           <p className="text-gray-600 mt-1">
+             {profile.organization?.name || 'Grand Prix Grand Tours'} • <Badge variant="secondary">{profile.role}</Badge>
+           </p>
         </div>
       </div>
 

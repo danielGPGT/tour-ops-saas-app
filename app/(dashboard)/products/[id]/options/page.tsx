@@ -11,6 +11,9 @@ import { PageHeader } from '@/components/common/PageHeader'
 import { OptionsTable } from '@/components/product-options/OptionsTable'
 import { AccommodationOptionForm } from '@/components/product-options/AccommodationOptionForm'
 import { EventOptionForm } from '@/components/product-options/EventOptionForm'
+import { TransferOptionForm } from '@/components/product-options/TransferOptionForm'
+import { ActivityOptionForm } from '@/components/product-options/ActivityOptionForm'
+import { ExtraOptionForm } from '@/components/product-options/ExtraOptionForm'
 
 export default function ProductOptionsPage() {
   const params = useParams()
@@ -71,6 +74,48 @@ export default function ProductOptionsPage() {
       
       {product.product_type?.type_name?.toLowerCase() === 'event' && (
         <EventOptionForm
+          open={isAddDialogOpen || !!editingOption}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsAddDialogOpen(false)
+              setEditingOption(null)
+            }
+          }}
+          productId={productId}
+          option={editingOption}
+        />
+      )}
+      
+      {product.product_type?.type_name?.toLowerCase() === 'transfers' && (
+        <TransferOptionForm
+          open={isAddDialogOpen || !!editingOption}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsAddDialogOpen(false)
+              setEditingOption(null)
+            }
+          }}
+          productId={productId}
+          option={editingOption}
+        />
+      )}
+      
+      {product.product_type?.type_name?.toLowerCase() === 'activity' && (
+        <ActivityOptionForm
+          open={isAddDialogOpen || !!editingOption}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsAddDialogOpen(false)
+              setEditingOption(null)
+            }
+          }}
+          productId={productId}
+          option={editingOption}
+        />
+      )}
+      
+      {product.product_type?.type_name?.toLowerCase() === 'extra' && (
+        <ExtraOptionForm
           open={isAddDialogOpen || !!editingOption}
           onOpenChange={(open) => {
             if (!open) {

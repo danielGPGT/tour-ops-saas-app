@@ -9,6 +9,12 @@ CREATE TABLE public.allocation_inventory (
   flexible_configuration boolean DEFAULT false,
   alternate_option_ids ARRAY,
   notes text,
+  min_quantity_per_booking integer DEFAULT 1,
+  max_quantity_per_booking integer,
+  is_active boolean DEFAULT true,
+  availability_generated boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT allocation_inventory_pkey PRIMARY KEY (id),
   CONSTRAINT allocation_inventory_contract_allocation_id_fkey FOREIGN KEY (contract_allocation_id) REFERENCES public.contract_allocations(id),
   CONSTRAINT allocation_inventory_product_option_id_fkey FOREIGN KEY (product_option_id) REFERENCES public.product_options(id)
@@ -32,7 +38,7 @@ CREATE TABLE public.audit_log (
 CREATE TABLE public.availability (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   allocation_inventory_id uuid NOT NULL,
-  availability_date date NOT NULL,
+  date date NOT NULL,
   total_available integer NOT NULL CHECK (total_available >= 0),
   booked integer DEFAULT 0,
   provisional integer DEFAULT 0,
@@ -245,7 +251,7 @@ CREATE TABLE public.contract_deadlines (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL,
   ref_type character varying NOT NULL CHECK (ref_type::text = ANY (ARRAY['contract'::character varying, 'allocation'::character varying, 'booking'::character varying]::text[])),
-  ccontract_id uuid,
+  contract_id uuid,
   deadline_type character varying NOT NULL,
   deadline_date date,
   days_before_arrival integer,
@@ -262,9 +268,9 @@ CREATE TABLE public.contract_deadlines (
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT contract_deadlines_pkey PRIMARY KEY (id),
-  CONSTRAINT contract_deadlines_ccontract_id_fkey FOREIGN KEY (ccontract_id) REFERENCES public.contracts(id),
   CONSTRAINT contract_deadlines_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT contract_deadlines_actioned_by_fkey FOREIGN KEY (actioned_by) REFERENCES public.users(id)
+  CONSTRAINT contract_deadlines_actioned_by_fkey FOREIGN KEY (actioned_by) REFERENCES public.users(id),
+  CONSTRAINT contract_deadlines_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id)
 );
 CREATE TABLE public.contract_payment_schedules (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

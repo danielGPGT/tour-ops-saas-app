@@ -17,7 +17,7 @@ export function useContracts(filters?: ContractFilters, sort?: ContractSort) {
   
   return useQuery({
     queryKey: ['contracts', profile?.organization_id, filters, sort],
-    queryFn: () => contractQueries.getContracts(profile!.organization_id, filters, sort),
+    queryFn: () => contractQueries.getContracts(profile?.organization_id || '', filters, sort),
     enabled: !!profile?.organization_id
   })
 }
@@ -37,7 +37,7 @@ export function useContractStats() {
   
   return useQuery({
     queryKey: ['contracts', 'stats', profile?.organization_id],
-    queryFn: () => contractQueries.getContractStats(profile!.organization_id),
+    queryFn: () => contractQueries.getContractStats(profile?.organization_id || ''),
     enabled: !!profile?.organization_id
   })
 }
@@ -51,7 +51,7 @@ export function useCreateContract() {
     mutationFn: (data: ContractFormData) => 
       contractQueries.createContract({
         ...data,
-        organization_id: profile!.organization_id
+        organization_id: profile?.organization_id || ''
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })

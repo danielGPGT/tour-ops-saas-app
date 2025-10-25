@@ -14,8 +14,6 @@ export interface SummaryCard {
     icon: React.ReactNode;
     color?: string;
   };
-  backgroundColor?: string;
-  iconBackgroundColor?: string;
 }
 
 export interface SummaryCardsProps {
@@ -27,8 +25,8 @@ export function SummaryCards({ cards, className = "" }: SummaryCardsProps) {
   return (
     <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 ${className}`}>
       {cards.map((card) => (
-        <Card key={card.id} className="shadow-sm border-0">
-          <CardContent className="">
+        <Card key={card.id} className="shadow-sm">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
@@ -51,7 +49,7 @@ export function SummaryCards({ cards, className = "" }: SummaryCardsProps) {
                   </div>
                 )}
               </div>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-md ${card.iconBackgroundColor || 'bg-primary/10'}`}>
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
                 {card.icon}
               </div>
             </div>

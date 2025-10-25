@@ -14,7 +14,7 @@ import { DataTable } from '@/components/common/DataTable'
 import { ContractList } from '@/components/contracts/contract-list'
 import { ContractCard } from '@/components/contracts/contract-card'
 import { ContractStatusTimeline } from '@/components/contracts/contract-timeline'
-import { ContractDialogForm } from '@/components/contracts/contract-dialog-form'
+import { ContractWizardDialog } from './new/components/ContractWizardDialog'
 import { useContracts, useContractStats, useDeleteContract } from '@/lib/hooks/useContracts'
 import { useSuppliers } from '@/lib/hooks/useSuppliers'
 import { toast } from 'sonner'
@@ -27,28 +27,22 @@ export default function ContractsPage() {
   const [filters, setFilters] = React.useState<ContractFilters>({})
   const [sort, setSort] = React.useState<ContractSort>({ field: 'created_at', direction: 'desc' })
   const [viewMode, setViewMode] = React.useState<'table' | 'grid'>('table')
+  const [showWizardDialog, setShowWizardDialog] = React.useState(false)
 
   const { data: contracts = [], isLoading, error } = useContracts(filters, sort)
   const { data: stats } = useContractStats()
   const { data: suppliers } = useSuppliers()
   const deleteContract = useDeleteContract()
 
-  // Debug: Log the data to see what's being returned
-  React.useEffect(() => {
-    console.log('Contracts data:', contracts)
-    console.log('Loading:', isLoading)
-    console.log('Error:', error)
-    console.log('Stats:', stats)
-  }, [contracts, isLoading, error, stats])
 
 
   const filteredContracts = React.useMemo(() => {
     if (!searchTerm) return contracts
     
     return contracts.filter(contract => 
-      contract.contract_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contract.contract_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contract.supplier?.name.toLowerCase().includes(searchTerm.toLowerCase())
+      contract.contract_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contract.contract_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contract.supplier?.name?.toLowerCase().includes(searchTerm.toLowerCase())
     )
   }, [contracts, searchTerm])
 
@@ -136,14 +130,10 @@ export default function ContractsPage() {
           <h1 className="text-2xl font-bold">Contracts</h1>
           <p className="text-muted-foreground">Manage supplier contracts and agreements</p>
         </div>
-        <ContractDialogForm
-          trigger={
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Contract
-            </Button>
-          }
-        />
+        <Button onClick={() => setShowWizardDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Contract
+        </Button>
       </div>
       {/* Summary Cards */}
       <SummaryCards cards={summaryData} />
@@ -350,7 +340,6 @@ export default function ContractsPage() {
             <Button 
               variant="outline"
               onClick={() => {
-                console.log('Creating sample data...')
                 // TODO: Implement sample data creation
                 alert('Sample data creation not implemented yet. Please create a contract manually.')
               }}
@@ -358,13 +347,23 @@ export default function ContractsPage() {
               <Plus className="h-4 w-4 mr-2" />
               Create Sample Data
             </Button>
-            <Button onClick={() => router.push('/contracts/new')}>
+            <Button onClick={() => setShowWizardDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Create Contract
             </Button>
           </div>
         </div>
       )}
+
+      {/* Contract Wizard Dialog */}
+      <ContractWizardDialog
+        open={showWizardDialog}
+        onOpenChange={setShowWizardDialog}
+        onSuccess={() => {
+          setShowWizardDialog(false)
+          toast.success('Contract created successfully!')
+        }}
+      />
     </div>
   )
 }

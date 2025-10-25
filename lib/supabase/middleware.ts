@@ -63,6 +63,7 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/forgot-password') &&
     !request.nextUrl.pathname.startsWith('/test-') &&
     !request.nextUrl.pathname.startsWith('/debug') &&
+    !request.nextUrl.pathname.startsWith('/api/') &&
     request.nextUrl.pathname !== '/'
   ) {
     // no user, potentially respond by redirecting the user to the login page

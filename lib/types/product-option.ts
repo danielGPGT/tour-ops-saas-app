@@ -12,10 +12,11 @@ export interface ProductOption {
   max_occupancy: number
   
   // Accommodation-specific
+  bed_type?: string
+  bed_quantity?: string
+  additional_bed?: string
   bed_configuration?: string
-  room_size_sqm?: number
   view_type?: string
-  floor_range?: string
   
   // Event-specific
   ticket_type?: string
@@ -95,10 +96,8 @@ export interface TransferOptionData {
   description?: string
   vehicle_type: string
   max_passengers: number
-  max_luggage: number
   vehicle_features?: string[]
   vehicle_class?: string
-  standard_occupancy: number
   base_price_hint?: number
   currency?: string
   is_active: boolean

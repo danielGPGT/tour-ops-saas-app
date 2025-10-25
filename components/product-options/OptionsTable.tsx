@@ -140,6 +140,100 @@ function SortableTableRow({
         </>
       )}
       
+      {productType === 'transfers' && (
+        <>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.vehicle_type?.replace('_', ' ') || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.vehicle_class || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm font-medium">
+              {(option.attributes as any)?.max_passengers || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <div className="text-sm">
+              {((option.attributes as any)?.vehicle_features || []).length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {((option.attributes as any)?.vehicle_features || []).slice(0, 2).map((feature: string, index: number) => (
+                    <span key={index} className="text-xs bg-muted px-1 rounded">
+                      {feature}
+                    </span>
+                  ))}
+                  {((option.attributes as any)?.vehicle_features || []).length > 2 && (
+                    <span className="text-xs text-muted-foreground">
+                      +{((option.attributes as any)?.vehicle_features || []).length - 2} more
+                    </span>
+                  )}
+                </div>
+              ) : (
+                '—'
+              )}
+            </div>
+          </TableCell>
+        </>
+      )}
+      
+      {productType === 'activity' && (
+        <>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.experience_type?.replace('_', ' ') || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.difficulty_level || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm font-medium">
+              {(option.attributes as any)?.duration_hours ? `${(option.attributes as any).duration_hours}h` : '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm">
+              {option.standard_occupancy}/{option.max_occupancy}
+            </span>
+          </TableCell>
+        </>
+      )}
+      
+      {productType === 'extra' && (
+        <>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.extra_type || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.unit_type?.replace('_', ' ') || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm">
+              {(option.attributes as any)?.is_mandatory ? (
+                <span className="text-orange-600 font-medium">Required</span>
+              ) : (
+                <span className="text-muted-foreground">Optional</span>
+              )}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm">
+              {(option.attributes as any)?.validity_days ? `${(option.attributes as any).validity_days} days` : '—'}
+            </span>
+          </TableCell>
+        </>
+      )}
+      
       {/* Status */}
       <TableCell>
         <div className="flex items-center gap-2">
@@ -473,6 +567,169 @@ export function OptionsTable({ options, productType, onEdit }: OptionsTableProps
       ]
     }
 
+    if (productType === 'transfers') {
+      return [
+        ...baseColumns.slice(0, 2), // drag, option_name
+        {
+          key: 'vehicle_type',
+          header: 'Vehicle Type',
+          width: 'w-[140px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.vehicle_type?.replace('_', ' ') || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'vehicle_class',
+          header: 'Class',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.vehicle_class || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'max_passengers',
+          header: 'Max Passengers',
+          width: 'w-[120px]',
+          render: (item) => (
+            <span className="text-sm font-medium">
+              {(item.attributes as any)?.max_passengers || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'vehicle_features',
+          header: 'Features',
+          width: 'w-[200px]',
+          render: (item) => {
+            const features = (item.attributes as any)?.vehicle_features || []
+            return (
+              <div className="text-sm">
+                {features.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {features.slice(0, 2).map((feature: string, index: number) => (
+                      <span key={index} className="text-xs bg-muted px-1 rounded">
+                        {feature}
+                      </span>
+                    ))}
+                    {features.length > 2 && (
+                      <span className="text-xs text-muted-foreground">
+                        +{features.length - 2} more
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  '—'
+                )}
+              </div>
+            )
+          }
+        },
+        ...baseColumns.slice(2) // status, actions
+      ]
+    }
+
+    if (productType === 'activity') {
+      return [
+        ...baseColumns.slice(0, 2), // drag, option_name
+        {
+          key: 'experience_type',
+          header: 'Experience Type',
+          width: 'w-[140px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.experience_type?.replace('_', ' ') || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'difficulty_level',
+          header: 'Difficulty',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.difficulty_level || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'duration_hours',
+          header: 'Duration',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm font-medium">
+              {(item.attributes as any)?.duration_hours ? `${(item.attributes as any).duration_hours}h` : '—'}
+            </span>
+          )
+        },
+        {
+          key: 'occupancy',
+          header: 'Group Size',
+          width: 'w-[120px]',
+          render: (item) => (
+            <span className="text-sm">
+              {item.standard_occupancy}/{item.max_occupancy}
+            </span>
+          )
+        },
+        ...baseColumns.slice(2) // status, actions
+      ]
+    }
+
+    if (productType === 'extra') {
+      return [
+        ...baseColumns.slice(0, 2), // drag, option_name
+        {
+          key: 'extra_type',
+          header: 'Extra Type',
+          width: 'w-[120px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.extra_type || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'unit_type',
+          header: 'Unit Type',
+          width: 'w-[120px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.unit_type?.replace('_', ' ') || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'is_mandatory',
+          header: 'Required',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm">
+              {(item.attributes as any)?.is_mandatory ? (
+                <span className="text-orange-600 font-medium">Required</span>
+              ) : (
+                <span className="text-muted-foreground">Optional</span>
+              )}
+            </span>
+          )
+        },
+        {
+          key: 'validity_days',
+          header: 'Validity',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm">
+              {(item.attributes as any)?.validity_days ? `${(item.attributes as any).validity_days} days` : '—'}
+            </span>
+          )
+        },
+        ...baseColumns.slice(2) // status, actions
+      ]
+    }
+
     // Default columns for other types
     return baseColumns
   }
@@ -493,7 +750,7 @@ export function OptionsTable({ options, productType, onEdit }: OptionsTableProps
         description: 'Add ticket categories and access levels for this event',
         buttonText: 'Add First Ticket Option'
       },
-      transfer: {
+      transfers: {
         icon: '🚗',
         title: 'No vehicle options yet',
         description: 'Add vehicle types and configurations for this transfer',
@@ -566,6 +823,30 @@ export function OptionsTable({ options, productType, onEdit }: OptionsTableProps
                        <TableHead>Ticket Type</TableHead>
                        <TableHead>Access Level</TableHead>
                        <TableHead>Section</TableHead>
+                     </>
+                   )}
+                   {productType === 'transfers' && (
+                     <>
+                       <TableHead>Vehicle Type</TableHead>
+                       <TableHead>Class</TableHead>
+                       <TableHead>Max Passengers</TableHead>
+                       <TableHead>Features</TableHead>
+                     </>
+                   )}
+                   {productType === 'activity' && (
+                     <>
+                       <TableHead>Experience Type</TableHead>
+                       <TableHead>Difficulty</TableHead>
+                       <TableHead>Duration</TableHead>
+                       <TableHead>Group Size</TableHead>
+                     </>
+                   )}
+                   {productType === 'extra' && (
+                     <>
+                       <TableHead>Extra Type</TableHead>
+                       <TableHead>Unit Type</TableHead>
+                       <TableHead>Required</TableHead>
+                       <TableHead>Validity</TableHead>
                      </>
                    )}
                    <TableHead>Status</TableHead>

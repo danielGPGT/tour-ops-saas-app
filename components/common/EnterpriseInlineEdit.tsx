@@ -1,12 +1,11 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Check, X, Edit2, Save } from 'lucide-react'
+import { Edit2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface EnterpriseInlineEditProps {
@@ -23,8 +22,6 @@ interface EnterpriseInlineEditProps {
   validation?: (value: any) => string | null
   formatValue?: (value: any) => string
   editIcon?: React.ReactNode
-  saveIcon?: React.ReactNode
-  cancelIcon?: React.ReactNode
 }
 
 export function EnterpriseInlineEdit({
@@ -40,9 +37,7 @@ export function EnterpriseInlineEdit({
   rows = 3,
   validation,
   formatValue,
-  editIcon = <Edit2 className="h-3 w-3" />,
-  saveIcon = <Save className="h-3 w-3" />,
-  cancelIcon = <X className="h-3 w-3" />
+  editIcon = <Edit2 className="h-3 w-3" />
 }: EnterpriseInlineEditProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value)
@@ -66,6 +61,27 @@ export function EnterpriseInlineEdit({
       }
     }
   }, [isEditing, type])
+
+  // Handle click outside to cancel
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isEditing) {
+        const target = event.target as Element
+        const isClickInside = inputRef.current?.contains(target) || 
+                             textareaRef.current?.contains(target) ||
+                             target.closest('[data-inline-edit]')
+        
+        if (!isClickInside) {
+          handleCancel()
+        }
+      }
+    }
+
+    if (isEditing) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isEditing])
 
   const handleEdit = () => {
     if (disabled) return
@@ -104,6 +120,9 @@ export function EnterpriseInlineEdit({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !multiline) {
+      e.preventDefault()
+      handleSave()
+    } else if (e.key === 'Enter' && multiline && (e.ctrlKey || e.metaKey)) {
       e.preventDefault()
       handleSave()
     } else if (e.key === 'Escape') {
@@ -222,32 +241,14 @@ export function EnterpriseInlineEdit({
 
   if (isEditing) {
     return (
-      <div className={cn('space-y-2', className)}>
+      <div className={cn('space-y-2', className)} data-inline-edit>
         {renderInput()}
-          {error && (
+        {error && (
           <p className="text-sm text-red-500">{error}</p>
         )}
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={isLoading}
-            className="h-8 px-2"
-          >
-            {saveIcon}
-            <span className="sr-only">Save</span>
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCancel}
-            disabled={isLoading}
-            className="h-8 px-2"
-          >
-            {cancelIcon}
-            <span className="sr-only">Cancel</span>
-          </Button>
-        </div>
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Saving...</p>
+        )}
       </div>
     )
   }
@@ -266,11 +267,8 @@ export function EnterpriseInlineEdit({
       </div>
       {!disabled && (
         <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-          <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-            {editIcon}
-            <span className="sr-only">Edit</span>
-          </Button>
-      </div>
+          {editIcon}
+        </div>
       )}
     </div>
   )

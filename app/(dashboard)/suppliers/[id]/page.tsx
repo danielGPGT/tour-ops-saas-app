@@ -224,7 +224,7 @@ export default function SupplierDetailsPage() {
       <div className="space-y-2">
         <Tabs defaultValue="overview" className="space-y-6">
           <div className="flex items-center justify-between">
-            <TabsList className="grid w-full max-w-md grid-cols-4">
+            <TabsList className="grid w-full max-w-md grid-cols-3">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <Building className="h-4 w-4" />
                 Overview
@@ -233,10 +233,7 @@ export default function SupplierDetailsPage() {
                 <FileText className="h-4 w-4" />
                 Contracts
               </TabsTrigger>
-              <TabsTrigger value="products" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Products
-              </TabsTrigger>
+
               <TabsTrigger value="bookings" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Bookings
@@ -455,25 +452,7 @@ export default function SupplierDetailsPage() {
           </InfoCard>
         </TabsContent>
 
-        <TabsContent value="products">
-          <InfoCard
-            title="Products"
-            description="All products and services from this supplier"
-            icon={<Users className="h-4 w-4" />}
-          >
-            <EmptyState
-              icon={<Users className="h-8 w-8 text-muted-foreground" />}
-              title="No products found"
-              description="This supplier doesn't have any products yet. Add your first product to get started."
-              action={{
-                label: "Add Product",
-                onClick: () => console.log("Add product"),
-                icon: <Users className="h-4 w-4" />
-              }}
-            />
-          </InfoCard>
-        </TabsContent>
-
+        
         <TabsContent value="bookings">
           <InfoCard
             title="Recent Bookings"

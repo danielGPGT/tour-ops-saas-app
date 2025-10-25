@@ -7,9 +7,9 @@ export function useBookings() {
   const { profile } = useAuth()
   
   return useQuery({
-    queryKey: ['bookings', profile?.organization.id],
-    queryFn: () => bookingQueries.getBookings(profile!.organization.id),
-    enabled: !!profile?.organization.id
+    queryKey: ['bookings', profile?.organization?.id],
+    queryFn: () => bookingQueries.getBookings(profile?.organization?.id || ''),
+    enabled: !!profile?.organization?.id
   })
 }
 
@@ -25,9 +25,9 @@ export function useBookingStats() {
   const { profile } = useAuth()
   
   return useQuery({
-    queryKey: ['booking-stats', profile?.organization.id],
-    queryFn: () => bookingQueries.getBookingStats(profile!.organization.id),
-    enabled: !!profile?.organization.id
+    queryKey: ['booking-stats', profile?.organization?.id],
+    queryFn: () => bookingQueries.getBookingStats(profile?.organization?.id || ''),
+    enabled: !!profile?.organization?.id
   })
 }
 
@@ -39,7 +39,7 @@ export function useCreateBooking() {
     mutationFn: (data: BookingFormData) => 
       bookingQueries.createBooking({
         ...data,
-        organization_id: profile!.organization.id
+        organization_id: profile?.organization?.id || ''
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] })

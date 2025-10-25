@@ -7,9 +7,9 @@ export function useCustomers() {
   const { profile } = useAuth()
   
   return useQuery({
-    queryKey: ['customers', profile?.organization.id],
-    queryFn: () => customerQueries.getCustomers(profile!.organization.id),
-    enabled: !!profile?.organization.id
+    queryKey: ['customers', profile?.organization?.id],
+    queryFn: () => customerQueries.getCustomers(profile?.organization?.id || ''),
+    enabled: !!profile?.organization?.id
   })
 }
 
@@ -25,9 +25,9 @@ export function useCustomerStats() {
   const { profile } = useAuth()
   
   return useQuery({
-    queryKey: ['customer-stats', profile?.organization.id],
-    queryFn: () => customerQueries.getCustomerStats(profile!.organization.id),
-    enabled: !!profile?.organization.id
+    queryKey: ['customer-stats', profile?.organization?.id],
+    queryFn: () => customerQueries.getCustomerStats(profile?.organization?.id || ''),
+    enabled: !!profile?.organization?.id
   })
 }
 
@@ -39,7 +39,7 @@ export function useCreateCustomer() {
     mutationFn: (data: CustomerFormData) => 
       customerQueries.createCustomer({
         ...data,
-        organization_id: profile!.organization.id
+        organization_id: profile?.organization?.id || ''
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
@@ -79,7 +79,7 @@ export function useSearchCustomers(query: string) {
   
   return useQuery({
     queryKey: ['customers', 'search', query],
-    queryFn: () => customerQueries.searchCustomers(profile!.organization.id, query),
-    enabled: !!profile?.organization.id && query.length >= 2
+    queryFn: () => customerQueries.searchCustomers(profile?.organization?.id || '', query),
+    enabled: !!profile?.organization?.id && query.length >= 2
   })
 }

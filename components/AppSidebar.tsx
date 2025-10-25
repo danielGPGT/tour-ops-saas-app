@@ -17,7 +17,8 @@ import {
   HelpCircle,
   Search,
   Map,
-  TrendingUp
+  TrendingUp,
+  Truck
 } from "lucide-react";
 
 import { NavDocuments } from "@/components/nav-documents";
@@ -43,9 +44,9 @@ const data = {
       icon: LayoutGrid,
     },
     {
-      title: "Inventory",
-      url: "/inventory",
-      icon: PackageSearch,
+      title: "Commercial",
+      url: "/commercial",
+      icon: Truck,
       items: [
         {
           title: "Suppliers",
@@ -55,21 +56,21 @@ const data = {
           title: "Contracts",
           url: "/contracts",
         },
+        
+      ],
+    },
+    {
+      title: "Inventory",
+      url: "/inventory",
+      icon: PackageSearch,
+      items: [
+        {
+          title: "Global Inventory",
+          url: "/inventory",
+        },
         {
           title: "Products",
           url: "/products",
-        },
-        {
-          title: "Product Types",
-          url: "/product-types",
-        },
-        {
-          title: "Rate Plans",
-          url: "/rates",
-        },
-        {
-          title: "Availability",
-          url: "/availability",
         },
       ],
     },

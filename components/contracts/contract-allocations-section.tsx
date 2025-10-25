@@ -1,25 +1,23 @@
 "use client"
 
-import React, { useState } from 'react'
+import React from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { DataTable } from '@/components/common/DataTable'
+import { AllocationsTable } from '@/components/allocations/allocations-table'
 import { EmptyState } from '@/components/common/EmptyState'
 import { TableSkeleton } from '@/components/common/LoadingSkeleton'
-import { ConfirmDialog } from '@/components/common/ConfirmDialog'
-import { ContractAllocationDialog } from '@/components/common/EditDialog'
-import { ContractAllocationFormContent } from '@/components/common/ContractAllocationForm'
-import { useContractAllocations, useCreateContractAllocation, useUpdateContractAllocation, useDeleteContractAllocation } from '@/lib/hooks/useContracts'
+import { SummaryCard } from '@/components/common/SummaryCard'
+import { useAllocationsByContract } from '@/lib/hooks/useAllocations'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { 
   Plus, 
-  Edit, 
-  Trash2, 
   Package, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react'
 
 interface ContractAllocationsSectionProps {
@@ -27,178 +25,40 @@ interface ContractAllocationsSectionProps {
 }
 
 export function ContractAllocationsSection({ contractId }: ContractAllocationsSectionProps) {
-  const [showForm, setShowForm] = useState(false)
-  const [editingAllocation, setEditingAllocation] = useState<any>(null)
-  const [selectedAllocations, setSelectedAllocations] = useState<any[]>([])
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [allocationToDelete, setAllocationToDelete] = useState<string | null>(null)
+  const router = useRouter()
+  const { data: allocations = [], isLoading, error } = useAllocationsByContract(contractId)
 
-  const { data: allocations = [], isLoading, error } = useContractAllocations(contractId)
-  const createAllocation = useCreateContractAllocation()
-  const updateAllocation = useUpdateContractAllocation()
-  const deleteAllocation = useDeleteContractAllocation()
-
-  const handleEdit = (allocation: any) => {
-    setEditingAllocation(allocation)
-    setShowForm(true)
+  const handleCreateAllocation = () => {
+    router.push(`/allocations/new?contract=${contractId}`)
   }
 
-  const handleDelete = (allocationId: string) => {
-    setAllocationToDelete(allocationId)
-    setDeleteDialogOpen(true)
+  const handleEditAllocation = (allocation: any) => {
+    router.push(`/allocations/${allocation.id}/edit`)
   }
 
-  const confirmDelete = async () => {
-    if (!allocationToDelete) return
-
-    try {
-      await deleteAllocation.mutateAsync(allocationToDelete)
-      toast.success('Contract allocation deleted successfully')
-      setDeleteDialogOpen(false)
-      setAllocationToDelete(null)
-    } catch (error) {
-      toast.error('Failed to delete contract allocation')
-    }
-  }
-
-  const handleFormSuccess = () => {
-    setShowForm(false)
-    setEditingAllocation(null)
-  }
-
-  const handleFormSubmit = async (data: any) => {
-    try {
-      if (editingAllocation) {
-        await updateAllocation.mutateAsync({
-          id: editingAllocation.id,
-          data: { ...data, contract_id: contractId }
-        })
-        toast.success('Contract allocation updated successfully')
-      } else {
-        await createAllocation.mutateAsync({
-          ...data,
-          contract_id: contractId
-        })
-        toast.success('Contract allocation created successfully')
-      }
-      handleFormSuccess()
-    } catch (error) {
-      toast.error('Failed to save contract allocation')
-    }
-  }
-
-  const handleFormCancel = () => {
-    setShowForm(false)
-    setEditingAllocation(null)
-  }
-
-  const getStatusBadge = (isActive: boolean) => {
-    return (
-      <Badge variant={isActive ? 'default' : 'secondary'}>
-        {isActive ? 'Active' : 'Inactive'}
-      </Badge>
-    )
-  }
-
-  const getDaysRange = (allocation: any) => {
-    if (allocation.min_nights && allocation.max_nights) {
-      return `${allocation.min_nights}-${allocation.max_nights} nights`
-    } else if (allocation.min_nights) {
-      return `${allocation.min_nights}+ nights`
-    } else if (allocation.max_nights) {
-      return `Up to ${allocation.max_nights} nights`
-    }
-    return 'No restrictions'
-  }
-
-  const columns = [
-    {
-      key: 'allocation_name',
-      header: 'Allocation Name',
-      render: (allocation: any) => (
-        <div className="font-medium">
-          {allocation.allocation_name || 'Unnamed Allocation'}
-        </div>
-      )
-    },
-    {
-      key: 'product',
-      header: 'Product',
-      render: (allocation: any) => (
-        <div>
-          <div className="font-medium">{allocation.product?.name || 'Unknown Product'}</div>
-          <div className="text-sm text-muted-foreground">{allocation.product?.code || 'N/A'}</div>
-        </div>
-      )
-    },
-    {
-      key: 'allocation_type',
-      header: 'Type',
-      render: (allocation: any) => (
-        <Badge variant="outline">
-          {allocation.allocation_type?.replace('_', ' ').toUpperCase() || 'Unknown'}
-        </Badge>
-      )
-    },
-    {
-      key: 'valid_period',
-      header: 'Valid Period',
-      render: (allocation: any) => (
-        <div className="text-sm">
-          <div className="flex items-center">
-            <Calendar className="h-4 w-4 mr-1" />
-            {format(new Date(allocation.valid_from), 'MMM dd, yyyy')} - {format(new Date(allocation.valid_to), 'MMM dd, yyyy')}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'nights',
-      header: 'Nights',
-      render: (allocation: any) => (
-        <div className="text-sm">{getDaysRange(allocation)}</div>
-      )
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (allocation: any) => getStatusBadge(allocation.is_active)
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (allocation: any) => (
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleEdit(allocation)}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleDelete(allocation.id)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      )
-    }
-  ]
+  // Calculate stats
+  const totalAllocations = allocations.length
+  const activeAllocations = allocations.filter(a => a.is_active).length
+  const expiringSoon = allocations.filter(a => {
+    const daysUntilEnd = Math.ceil((new Date(a.valid_to).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    return daysUntilEnd <= 30 && daysUntilEnd > 0
+  }).length
+  const expiredAllocations = allocations.filter(a => new Date(a.valid_to) < new Date()).length
 
   if (isLoading) {
-    return <TableSkeleton rows={5} columns={7} />
+    return <TableSkeleton />
   }
 
   if (error) {
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center text-red-600">
-            <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-            <p>Error loading contract allocations: {error.message}</p>
+          <div className="text-center">
+            <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
+            <h3 className="mt-4 text-lg font-semibold">Error loading allocations</h3>
+            <p className="mt-2 text-muted-foreground">
+              {error.message || 'Failed to load allocations'}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -207,62 +67,72 @@ export function ContractAllocationsSection({ contractId }: ContractAllocationsSe
 
   return (
     <div className="space-y-6">
-      <ContractAllocationDialog
-        open={showForm}
-        onOpenChange={setShowForm}
-        onSave={() => {
-          // Handle save logic here
-          handleFormSuccess()
-        }}
-        onCancel={handleFormCancel}
-        isLoading={false}
-        showDelete={!!editingAllocation}
-        onDelete={editingAllocation ? () => handleDelete(editingAllocation.id) : undefined}
-      >
-        <ContractAllocationFormContent
-          defaultValues={editingAllocation}
-          onSubmit={handleFormSubmit}
-          isLoading={createAllocation.isPending || updateAllocation.isPending}
-          products={[]} // TODO: Load products from API
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <SummaryCard
+          title="Total Allocations"
+          value={totalAllocations.toString()}
+          icon={<Package className="h-4 w-4" />}
+          description="All allocations for this contract"
         />
-      </ContractAllocationDialog>
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Contract Allocations</h3>
-          <p className="text-sm text-muted-foreground">
-            Manage product allocations and inventory blocks for this contract
-          </p>
-        </div>
-        <Button onClick={() => setShowForm(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Allocation
-        </Button>
+        <SummaryCard
+          title="Active Allocations"
+          value={activeAllocations.toString()}
+          icon={<Calendar className="h-4 w-4" />}
+          description="Currently active allocations"
+          trend={activeAllocations > 0 ? 'up' : 'neutral'}
+        />
+        <SummaryCard
+          title="Expiring Soon"
+          value={expiringSoon.toString()}
+          icon={<AlertCircle className="h-4 w-4" />}
+          description="Allocations ending in 30 days"
+          trend={expiringSoon > 0 ? 'down' : 'neutral'}
+          variant={expiringSoon > 0 ? 'warning' : 'default'}
+        />
+        <SummaryCard
+          title="Expired"
+          value={expiredAllocations.toString()}
+          icon={<AlertCircle className="h-4 w-4" />}
+          description="Past their end date"
+          trend={expiredAllocations > 0 ? 'down' : 'neutral'}
+          variant={expiredAllocations > 0 ? 'destructive' : 'default'}
+        />
       </div>
 
-      <DataTable
-        columns={columns}
-        data={allocations}
-        selectedItems={selectedAllocations}
-        onSelectionChange={setSelectedAllocations}
-        getId={(allocation) => allocation.id}
-        isLoading={isLoading}
-        emptyState={{
-          icon: <Package className="h-8 w-8" />,
-          title: 'No Contract Allocations',
-          description: 'Add allocations to define product inventory blocks for this contract.'
-        }}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title="Delete Contract Allocation"
-        description="Are you sure you want to delete this contract allocation? This action cannot be undone."
-        onConfirm={confirmDelete}
-        isLoading={deleteAllocation.isPending}
-      />
+      {/* Allocations Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Allocations</CardTitle>
+            <Button onClick={handleCreateAllocation}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Allocation
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {allocations.length === 0 ? (
+            <EmptyState
+              icon={<Package className="h-12 w-12" />}
+              title="No allocations yet"
+              description="Create your first allocation to start managing inventory for this contract."
+              action={
+                <Button onClick={handleCreateAllocation}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Allocation
+                </Button>
+              }
+            />
+          ) : (
+            <AllocationsTable
+              allocations={allocations}
+              isLoading={isLoading}
+              onEdit={handleEditAllocation}
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

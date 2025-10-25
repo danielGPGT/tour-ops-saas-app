@@ -9,7 +9,7 @@ export function useProducts(filters?: ProductFilters, sort?: ProductSort) {
   
   return useQuery({
     queryKey: ['products', profile?.organization_id, filters, sort],
-    queryFn: () => productQueries.getProducts(profile!.organization_id, filters, sort),
+    queryFn: () => productQueries.getProducts(profile?.organization_id || '', filters, sort),
     enabled: !!profile?.organization_id
   })
 }
@@ -86,7 +86,7 @@ export function useCreateProductType() {
     mutationFn: (data: Partial<ProductType>) => 
       productQueries.createProductType({
         ...data,
-        organization_id: profile!.organization_id
+        organization_id: profile?.organization_id || ''
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-types'] })
@@ -155,7 +155,7 @@ export function useCreateSellingRate() {
     mutationFn: (data: Partial<SellingRate>) => 
       productQueries.createSellingRate({
         ...data,
-        organization_id: profile!.organization_id
+        organization_id: profile?.organization_id || ''
       }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['selling-rates', variables.product_id] })
@@ -193,7 +193,7 @@ export function useProductStats() {
   
   return useQuery({
     queryKey: ['product-stats', profile?.organization_id],
-    queryFn: () => productQueries.getProductStats(profile!.organization_id),
+    queryFn: () => productQueries.getProductStats(profile?.organization_id || ''),
     enabled: !!profile?.organization_id
   })
 }

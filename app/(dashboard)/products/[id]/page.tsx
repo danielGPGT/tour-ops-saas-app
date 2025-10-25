@@ -56,6 +56,9 @@ import { ProductImagesInlineEdit } from '@/components/products/ProductImagesInli
 import { OptionsTable } from '@/components/product-options/OptionsTable'
 import { AccommodationOptionForm } from '@/components/product-options/AccommodationOptionForm'
 import { EventOptionForm } from '@/components/product-options/EventOptionForm'
+import { TransferOptionForm } from '@/components/product-options/TransferOptionForm'
+import { ActivityOptionForm } from '@/components/product-options/ActivityOptionForm'
+import { ExtraOptionForm } from '@/components/product-options/ExtraOptionForm'
 import { 
   ACCOMMODATION_PROPERTY_TYPES,
   ACCOMMODATION_AMENITIES,
@@ -855,6 +858,48 @@ export default function ProductDetailsPage() {
       
       {product.product_type?.type_name?.toLowerCase() === 'event' && (
         <EventOptionForm
+          open={showAddOptionDialog || !!editingOption}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowAddOptionDialog(false)
+              setEditingOption(null)
+            }
+          }}
+          productId={productId}
+          option={editingOption as any}
+        />
+      )}
+      
+      {product.product_type?.type_name?.toLowerCase() === 'transfers' && (
+        <TransferOptionForm
+          open={showAddOptionDialog || !!editingOption}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowAddOptionDialog(false)
+              setEditingOption(null)
+            }
+          }}
+          productId={productId}
+          option={editingOption as any}
+        />
+      )}
+      
+      {product.product_type?.type_name?.toLowerCase() === 'activity' && (
+        <ActivityOptionForm
+          open={showAddOptionDialog || !!editingOption}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowAddOptionDialog(false)
+              setEditingOption(null)
+            }
+          }}
+          productId={productId}
+          option={editingOption as any}
+        />
+      )}
+      
+      {product.product_type?.type_name?.toLowerCase() === 'extra' && (
+        <ExtraOptionForm
           open={showAddOptionDialog || !!editingOption}
           onOpenChange={(open) => {
             if (!open) {
