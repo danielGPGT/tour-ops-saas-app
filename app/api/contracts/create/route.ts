@@ -93,21 +93,29 @@ export async function POST(request: NextRequest) {
     console.log('🏗️ Creating allocations...', allocations)
     if (allocations && allocations.length > 0) {
       console.log('📝 Processing', allocations.length, 'allocations')
-      const allocationInserts = allocations.map((allocation: any) => ({
-        contract_id: newContract.id,
-        product_id: allocation.product_id,
-        allocation_name: allocation.allocation_name,
-        allocation_type: allocation.allocation_type || 'allotment',
-        total_quantity: allocation.total_quantity,
-        valid_from: allocation.valid_from || contract.valid_from,
-        valid_to: allocation.valid_to || contract.valid_to,
-        total_cost: allocation.total_cost,
-        cost_per_unit: allocation.cost_per_unit,
-        min_nights: allocation.min_nights,
-        max_nights: allocation.max_nights,
-        notes: allocation.notes,
-        is_active: true
-      }))
+      const allocationInserts = allocations.map((allocation: any) => {
+        // Skip allocations without product_id
+        if (!allocation.product_id || allocation.product_id === '') {
+          console.log('⚠️ Skipping allocation without product_id:', allocation.allocation_name)
+          return null
+        }
+        
+        return {
+          contract_id: newContract.id,
+          product_id: allocation.product_id,
+          allocation_name: allocation.allocation_name,
+          allocation_type: allocation.allocation_type || 'committed',
+          total_quantity: allocation.total_quantity,
+          valid_from: allocation.valid_from || contract.valid_from,
+          valid_to: allocation.valid_to || contract.valid_to,
+          total_cost: allocation.total_cost,
+          cost_per_unit: allocation.cost_per_unit,
+          min_nights: allocation.min_nights,
+          max_nights: allocation.max_nights,
+          notes: allocation.notes,
+          is_active: true
+        }
+      }).filter(Boolean) // Remove null entries
 
       const { error: allocationError } = await supabase
         .from('contract_allocations')
@@ -125,18 +133,41 @@ export async function POST(request: NextRequest) {
     console.log('💳 Creating payments...', payments)
     if (payments && payments.length > 0) {
       console.log('📝 Processing', payments.length, 'payments')
-      const paymentInserts = payments.map((payment: any) => ({
-        contract_id: newContract.id,
-        payment_number: payment.payment_number,
-        due_date: payment.due_date,
-        amount_due: payment.amount_due,
-        percentage: payment.percentage,
-        description: payment.description,
-        status: payment.status || 'pending',
-        paid_date: payment.paid_date,
-        paid_amount: payment.paid_amount,
-        payment_reference: payment.payment_reference
-      }))
+      const paymentInserts = payments.map((payment: any) => {
+        // Convert relative dates to actual dates
+        let dueDate = payment.due_date
+        if (typeof dueDate === 'string' && !dueDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Handle relative dates
+          if (dueDate.includes('contract signing')) {
+            dueDate = contract.valid_from // Use contract start date
+          } else if (dueDate.includes('90 days before arrival')) {
+            const arrivalDate = new Date(contract.valid_from)
+            arrivalDate.setDate(arrivalDate.getDate() - 90)
+            dueDate = arrivalDate.toISOString().split('T')[0]
+          } else if (dueDate.includes('60 days before arrival')) {
+            const arrivalDate = new Date(contract.valid_from)
+            arrivalDate.setDate(arrivalDate.getDate() - 60)
+            dueDate = arrivalDate.toISOString().split('T')[0]
+          } else if (dueDate.includes('30 days before arrival')) {
+            const arrivalDate = new Date(contract.valid_from)
+            arrivalDate.setDate(arrivalDate.getDate() - 30)
+            dueDate = arrivalDate.toISOString().split('T')[0]
+          }
+        }
+
+        return {
+          contract_id: newContract.id,
+          payment_number: payment.payment_number,
+          due_date: dueDate,
+          amount_due: payment.amount_due || payment.amount,
+          percentage: payment.percentage,
+          description: payment.description,
+          status: payment.status || 'pending',
+          paid_date: payment.paid_date,
+          paid_amount: payment.paid_amount,
+          payment_reference: payment.payment_reference
+        }
+      })
 
       const { error: paymentError } = await supabase
         .from('contract_payments')
@@ -150,39 +181,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create rates
-    console.log('💰 Creating rates...', rates)
-    if (rates && rates.length > 0) {
-      console.log('📝 Processing', rates.length, 'rates')
-      const rateInserts = rates.map((rate: any) => ({
-        contract_id: newContract.id,
-        product_id: rate.product_id,
-        rate_name: rate.rate_name,
-        rate_type: rate.rate_type || 'per_night',
-        base_rate: rate.base_rate,
-        surcharge: rate.surcharge || 0,
-        total_rate: rate.total_rate,
-        currency: rate.currency || contract.currency,
-        valid_from: rate.valid_from || contract.valid_from,
-        valid_to: rate.valid_to || contract.valid_to,
-        min_nights: rate.min_nights,
-        max_nights: rate.max_nights,
-        includes: rate.includes,
-        notes: rate.notes,
-        is_active: rate.is_active !== false
-      }))
-
-      const { error: rateError } = await supabase
-        .from('contract_rates')
-        .insert(rateInserts)
-
-      if (rateError) {
-        console.error('❌ Rate creation failed:', rateError)
-        // Continue - don't fail the whole operation
-      } else {
-        console.log('✅ Rates created successfully')
-      }
-    }
+    // Note: Rates table doesn't exist yet, skipping rates creation
+    console.log('💰 Rates creation skipped - contract_rates table does not exist')
 
     return NextResponse.json({
       success: true,
