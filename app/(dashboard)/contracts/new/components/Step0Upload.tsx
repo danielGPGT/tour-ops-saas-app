@@ -7,8 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Textarea } from '@/components/ui/textarea'
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Copy } from 'lucide-react'
-import { useDropzone } from 'react-dropzone'
+import { FileText, CheckCircle, AlertCircle, Loader2, Copy } from 'lucide-react'
 import { usePDFExtraction } from '../hooks/usePDFExtraction'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { toast } from 'sonner'
@@ -33,77 +32,9 @@ export function Step0Upload({
   const [extractionResults, setExtractionResults] = useState<any>(null)
   const [showReview, setShowReview] = useState(false)
   const [contractText, setContractText] = useState('')
-  const [showTextInput, setShowTextInput] = useState(false)
 
   const { user, loading } = useAuth()
   const { extractFromPDF } = usePDFExtraction()
-
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0]
-    if (!file) return
-
-    if (file.type !== 'application/pdf') {
-      toast.error('Please upload a PDF file')
-      return
-    }
-
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      toast.error('File size must be less than 10MB')
-      return
-    }
-
-    setIsProcessing(true)
-    setExtractionProgress(0)
-
-    try {
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setExtractionProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval)
-            return 90
-          }
-          return prev + 10
-        })
-      }, 200)
-
-      const result = await extractFromPDF(file)
-      
-      clearInterval(progressInterval)
-      setExtractionProgress(100)
-      
-      setExtractionResults(result)
-      onExtractedData(result) // Pass the full result object, not just extracted
-      setShowReview(true)
-      
-      toast.success('Contract data extracted successfully!')
-      
-    } catch (error) {
-      console.error('PDF extraction failed:', error)
-      toast.error('Failed to extract contract data. Please try again.')
-    } finally {
-      setIsProcessing(false)
-    }
-  }, [extractFromPDF, onExtractedData])
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/pdf': ['.pdf']
-    },
-    multiple: false
-  })
-
-  const handleReviewComplete = () => {
-    if (extractionResults?.extracted) {
-      onDataUpdate(extractionResults.extracted)
-    }
-    onNext()
-  }
-
-  const handleStartManual = () => {
-    onNext()
-  }
 
   const handleTextExtraction = useCallback(async () => {
     if (!contractText.trim()) {
@@ -136,9 +67,10 @@ export function Step0Upload({
         })
       }, 200)
 
-      // Create a mock file for the text extraction
-      const mockFile = new File([contractText], 'contract.txt', { type: 'text/plain' })
-      const result = await extractFromPDF(mockFile)
+      // Create a mock file object for text input
+      const textFile = new File([contractText], 'contract.txt', { type: 'text/plain' })
+      
+      const result = await extractFromPDF(textFile)
       
       clearInterval(progressInterval)
       setExtractionProgress(100)
@@ -155,7 +87,18 @@ export function Step0Upload({
     } finally {
       setIsProcessing(false)
     }
-  }, [contractText, user?.id, extractFromPDF, onExtractedData])
+  }, [contractText, extractFromPDF, onExtractedData, user?.id])
+
+  const handleReviewComplete = () => {
+    if (extractionResults?.extracted) {
+      onDataUpdate(extractionResults.extracted)
+    }
+    onNext()
+  }
+
+  const handleStartManual = () => {
+    onNext()
+  }
 
   // Show loading state while authentication is being checked
   if (loading) {
@@ -193,478 +136,226 @@ export function Step0Upload({
     return (
       <div className="space-y-6">
         <div className="text-center">
-          <h2 className="text-2xl font-semibold text-foreground mb-2">
-            Review Extracted Information
-          </h2>
-          <p className="text-muted-foreground">
-            We found the following information. Please review and edit if needed.
-          </p>
-        </div>
-
-        <div className="space-y-6">
-          {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {extractionResults.extracted.supplier_name && (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">Supplier</div>
-                      <div className="text-sm text-muted-foreground">
-                        {extractionResults.extracted.supplier_name}
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Extracted
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {extractionResults.extracted.client_name && (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">Client</div>
-                      <div className="text-sm text-muted-foreground">
-                        {extractionResults.extracted.client_name}
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Extracted
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {extractionResults.extracted.contract_name && (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">Event Name</div>
-                      <div className="text-sm text-muted-foreground">
-                        {extractionResults.extracted.contract_name}
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Extracted
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {extractionResults.extracted.total_value && (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">Total Value</div>
-                      <div className="text-sm text-muted-foreground">
-                        {extractionResults.extracted.currency} {extractionResults.extracted.total_value.toLocaleString()}
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Extracted
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+          <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+            <CheckCircle className="h-8 w-8 text-green-600" />
           </div>
-
-          {/* Event Dates */}
-          {extractionResults.extracted.event_dates && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Event Dates</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {extractionResults.extracted.event_dates.start_date && (
-                    <div>
-                      <div className="text-sm font-medium">Start Date</div>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(extractionResults.extracted.event_dates.start_date).toLocaleDateString()}
-                      </div>
-                    </div>
-                  )}
-                  {extractionResults.extracted.event_dates.end_date && (
-                    <div>
-                      <div className="text-sm font-medium">End Date</div>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(extractionResults.extracted.event_dates.end_date).toLocaleDateString()}
-                      </div>
-                    </div>
-                  )}
-                  {extractionResults.extracted.event_dates.check_in && (
-                    <div>
-                      <div className="text-sm font-medium">Check-in</div>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(extractionResults.extracted.event_dates.check_in).toLocaleDateString()}
-                      </div>
-                    </div>
-                  )}
-                  {extractionResults.extracted.event_dates.check_out && (
-                    <div>
-                      <div className="text-sm font-medium">Check-out</div>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(extractionResults.extracted.event_dates.check_out).toLocaleDateString()}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Contact Information */}
-          {(extractionResults.extracted.supplier_contact || extractionResults.extracted.client_contact) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {extractionResults.extracted.supplier_contact && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Supplier Contact</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div><strong>{extractionResults.extracted.supplier_contact.name}</strong></div>
-                      <div className="text-sm text-muted-foreground">{extractionResults.extracted.supplier_contact.title}</div>
-                      {extractionResults.extracted.supplier_contact.phone && (
-                        <div className="text-sm">📞 {extractionResults.extracted.supplier_contact.phone}</div>
-                      )}
-                      {extractionResults.extracted.supplier_contact.email && (
-                        <div className="text-sm">✉️ {extractionResults.extracted.supplier_contact.email}</div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {extractionResults.extracted.client_contact && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Client Contact</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div><strong>{extractionResults.extracted.client_contact.name}</strong></div>
-                      <div className="text-sm text-muted-foreground">{extractionResults.extracted.client_contact.title}</div>
-                      {extractionResults.extracted.client_contact.phone && (
-                        <div className="text-sm">📞 {extractionResults.extracted.client_contact.phone}</div>
-                      )}
-                      {extractionResults.extracted.client_contact.email && (
-                        <div className="text-sm">✉️ {extractionResults.extracted.client_contact.email}</div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {/* Room Requirements */}
-          {extractionResults.extracted.room_requirements && extractionResults.extracted.room_requirements.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Room Requirements</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {extractionResults.extracted.room_requirements.map((room: any, index: number) => (
-                    <div key={index} className="border rounded-lg p-4">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                          <div className="text-sm font-medium">Room Type</div>
-                          <div className="text-sm text-muted-foreground">{room.room_type}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium">Rate</div>
-                          <div className="text-sm text-muted-foreground">
-                            {extractionResults.extracted.currency} {room.total_rate}
-                            {room.surcharge > 0 && ` (${room.base_rate} + ${room.surcharge} surcharge)`}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium">Quantity</div>
-                          <div className="text-sm text-muted-foreground">{room.quantity} rooms</div>
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium">Nights</div>
-                          <div className="text-sm text-muted-foreground">{room.nights} nights</div>
-                        </div>
-                      </div>
-                      {room.includes && (
-                        <div className="mt-2 text-sm text-muted-foreground">
-                          Includes: {room.includes}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Payment Schedule */}
-          {extractionResults.extracted.payment_schedule && extractionResults.extracted.payment_schedule.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Payment Schedule</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {extractionResults.extracted.payment_schedule.map((payment: any, index: number) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <div className="font-medium">Payment {payment.payment_number}</div>
-                        <div className="text-sm text-muted-foreground">{payment.description}</div>
-                        {payment.due_date && (
-                          <div className="text-sm text-muted-foreground">
-                            Due: {new Date(payment.due_date).toLocaleDateString()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className="font-medium">
-                          {extractionResults.extracted.currency} {payment.amount.toLocaleString()}
-                        </div>
-                        <div className="text-sm text-muted-foreground">{payment.percentage}%</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Special Terms */}
-          {extractionResults.extracted.special_terms && extractionResults.extracted.special_terms.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Special Terms</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {extractionResults.extracted.special_terms.map((term: string, index: number) => (
-                    <li key={index} className="text-sm">• {term}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Warnings */}
-          {extractionResults.warnings && extractionResults.warnings.length > 0 && (
-            <Alert className="col-span-2">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="font-medium mb-2">Couldn't extract:</div>
-                <ul className="list-disc list-inside space-y-1">
-                  {extractionResults.warnings.map((warning: string, index: number) => (
-                    <li key={index} className="text-sm">{warning}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
-
-        <div className="flex justify-center gap-4">
-          <Button variant="outline" onClick={() => setShowReview(false)}>
-            Start Over
-          </Button>
-          <Button onClick={handleReviewComplete}>
-            Looks Good - Continue
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (isProcessing) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
           <h2 className="text-2xl font-semibold text-foreground mb-2">
-            Processing Contract...
+            Contract Data Extracted Successfully!
           </h2>
           <p className="text-muted-foreground">
-            AI is extracting information from your contract
+            Review the extracted information below
           </p>
         </div>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-              </div>
-              
-              <div>
-                <div className="font-medium mb-2">🤖 Extracting information...</div>
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <div>✓ Found supplier information</div>
-                  <div>✓ Found contract dates</div>
-                  <div>✓ Found allocation details</div>
-                  <div>✓ Found payment terms</div>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Extracted Contract Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {extractionResults.extracted && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Supplier</label>
+                    <p className="text-sm">{extractionResults.extracted.supplier_name || 'Not found'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Contract Name</label>
+                    <p className="text-sm">{extractionResults.extracted.contract_name || 'Not found'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Contract Type</label>
+                    <p className="text-sm">{extractionResults.extracted.contract_type || 'Not found'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Total Value</label>
+                    <p className="text-sm">{extractionResults.extracted.total_value ? `${extractionResults.extracted.currency} ${extractionResults.extracted.total_value.toLocaleString()}` : 'Not found'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Valid From</label>
+                    <p className="text-sm">{extractionResults.extracted.contract_dates?.valid_from || 'Not found'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Valid To</label>
+                    <p className="text-sm">{extractionResults.extracted.contract_dates?.valid_to || 'Not found'}</p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Extraction Progress</span>
-                  <span>{extractionProgress}%</span>
-                </div>
-                <Progress value={extractionProgress} className="w-full" />
-              </div>
-            </div>
+                {extractionResults.extracted.supplier_contact && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Supplier Contact</label>
+                    <div className="text-sm space-y-1">
+                      <p><strong>Name:</strong> {extractionResults.extracted.supplier_contact.name}</p>
+                      <p><strong>Title:</strong> {extractionResults.extracted.supplier_contact.title}</p>
+                      <p><strong>Phone:</strong> {extractionResults.extracted.supplier_contact.phone}</p>
+                      <p><strong>Email:</strong> {extractionResults.extracted.supplier_contact.email}</p>
+                    </div>
+                  </div>
+                )}
+
+                {extractionResults.extracted.client_contact && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Client Contact</label>
+                    <div className="text-sm space-y-1">
+                      <p><strong>Name:</strong> {extractionResults.extracted.client_contact.name}</p>
+                      <p><strong>Title:</strong> {extractionResults.extracted.client_contact.title}</p>
+                      <p><strong>Phone:</strong> {extractionResults.extracted.client_contact.phone}</p>
+                      <p><strong>Email:</strong> {extractionResults.extracted.client_contact.email}</p>
+                    </div>
+                  </div>
+                )}
+
+                {extractionResults.extracted.room_requirements && extractionResults.extracted.room_requirements.length > 0 && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Room Requirements</label>
+                    <div className="space-y-2">
+                      {extractionResults.extracted.room_requirements.map((room: any, index: number) => (
+                        <div key={index} className="p-3 bg-muted rounded-lg">
+                          <p><strong>Type:</strong> {room.room_type}</p>
+                          <p><strong>Rate:</strong> {room.total_rate} {extractionResults.extracted.currency}</p>
+                          <p><strong>Quantity:</strong> {room.quantity} rooms</p>
+                          <p><strong>Nights:</strong> {room.nights}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {extractionResults.extracted.payment_schedule && extractionResults.extracted.payment_schedule.length > 0 && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Payment Schedule</label>
+                    <div className="space-y-2">
+                      {extractionResults.extracted.payment_schedule.map((payment: any, index: number) => (
+                        <div key={index} className="p-3 bg-muted rounded-lg">
+                          <p><strong>Payment {payment.payment_number}:</strong> {payment.percentage}% - {payment.amount} {extractionResults.extracted.currency}</p>
+                          <p><strong>Due:</strong> {payment.due_date || 'Upon signing'}</p>
+                          <p><strong>Description:</strong> {payment.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {extractionResults.extracted.special_terms && extractionResults.extracted.special_terms.length > 0 && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Special Terms</label>
+                    <ul className="text-sm space-y-1">
+                      {extractionResults.extracted.special_terms.map((term: string, index: number) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-muted-foreground">•</span>
+                          <span>{term}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+
+            {extractionResults.warnings && extractionResults.warnings.length > 0 && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Warnings:</strong> {extractionResults.warnings.join(', ')}
+                </AlertDescription>
+              </Alert>
+            )}
           </CardContent>
         </Card>
-      </div>
-    )
-  }
 
-  if (method === 'pdf') {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold text-foreground mb-2">
-            Upload Contract PDF
-          </h2>
-          <p className="text-muted-foreground">
-            Drop your contract PDF here and let AI extract the information
-          </p>
+        <div className="flex justify-center gap-4">
+          <Button variant="outline" onClick={() => setShowReview(false)}>
+            Back to Edit
+          </Button>
+          <Button onClick={handleReviewComplete}>
+            Continue to Contract Details
+          </Button>
         </div>
-
-        {!showTextInput ? (
-          <>
-            <div
-              {...getRootProps()}
-              className={`
-                border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200
-                ${isDragActive 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5'
-                }
-              `}
-            >
-              <input {...getInputProps()} />
-              
-              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <Upload className="h-8 w-8 text-primary" />
-              </div>
-              
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                {isDragActive ? 'Drop your PDF here' : 'Drop PDF here or click to upload'}
-              </h3>
-              
-              <p className="text-muted-foreground mb-4">
-                Supported format: PDF (max 10MB)
-              </p>
-              
-              <div className="text-sm text-primary/80 space-y-1">
-                <div>✨ Extracts: supplier, dates, rates,</div>
-                <div>payment terms, cancellation...</div>
-              </div>
-            </div>
-
-            <div className="flex justify-center gap-4">
-              <Button variant="outline" onClick={() => setShowTextInput(true)}>
-                <Copy className="h-4 w-4 mr-2" />
-                Paste Contract Text Instead
-              </Button>
-              <Button variant="outline" onClick={handleStartManual}>
-                Enter Details Manually Instead
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Copy className="h-5 w-5" />
-                  Paste Contract Text
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Copy and paste the contract text from your PDF document
-                </p>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={contractText}
-                  onChange={(e) => setContractText(e.target.value)}
-                  placeholder="Paste your contract text here..."
-                  className="min-h-[200px]"
-                />
-                <div className="flex justify-between items-center mt-4">
-                  <div className="text-sm text-muted-foreground">
-                    {contractText.length} characters
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setShowTextInput(false)}>
-                      Back to PDF Upload
-                    </Button>
-                    <Button 
-                      onClick={handleTextExtraction}
-                      disabled={!contractText.trim()}
-                    >
-                      Extract Data
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </div>
     )
   }
 
-  // Manual entry option
   return (
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-semibold text-foreground mb-2">
-          Manual Contract Entry
+          Contract Text Extraction
         </h2>
         <p className="text-muted-foreground">
-          Fill out the 3-step wizard to create your contract
+          Paste your contract text below and we'll extract the key information automatically
         </p>
       </div>
 
       <Card>
-        <CardContent className="p-6">
-          <div className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center">
-              <FileText className="h-8 w-8 text-secondary" />
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Copy className="h-5 w-5" />
+            Paste Contract Text
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Copy and paste the contract text from your document
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={contractText}
+            onChange={(e) => setContractText(e.target.value)}
+            placeholder="Paste your contract text here..."
+            className="min-h-[300px]"
+          />
+          <div className="flex justify-between items-center mt-4">
+            <div className="text-sm text-muted-foreground">
+              {contractText.length} characters
             </div>
-            
-            <div>
-              <div className="font-medium mb-2">📝 Step-by-step form</div>
-              <div className="text-sm text-muted-foreground space-y-1">
-                <div>✓ Contract basics</div>
-                <div>✓ Allocations & releases</div>
-                <div>✓ Optional rates</div>
-                <div>⚡ 80% faster than before</div>
-              </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleTextExtraction}
+                disabled={!contractText.trim() || isProcessing}
+                className="flex items-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Extracting...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4" />
+                    Extract Data
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-center">
-        <Button onClick={handleStartManual}>
-          Start Manual Entry
+      {isProcessing && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Extracting contract data...</span>
+              </div>
+              <Progress value={extractionProgress} className="w-full" />
+              <p className="text-xs text-muted-foreground text-center">
+                {extractionProgress < 30 ? 'Processing text...' :
+                 extractionProgress < 60 ? 'Analyzing contract structure...' :
+                 extractionProgress < 90 ? 'Extracting key information...' :
+                 'Finalizing results...'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex justify-center gap-4">
+        <Button variant="outline" onClick={handleStartManual}>
+          Enter Details Manually Instead
         </Button>
       </div>
     </div>

@@ -9,6 +9,7 @@ import { Step2Allocations } from './Step2Allocations'
 import { Step3Rates } from './Step3Rates'
 import { useContractWizard } from '../hooks/useContractWizard'
 import { useAutoSave } from '../hooks/useAutoSave'
+import { useAuth } from '@/lib/hooks/useAuth'
 import { toast } from 'sonner'
 
 interface ContractWizardProps {
@@ -21,6 +22,7 @@ export function ContractWizard({ method, onClose, onSuccess }: ContractWizardPro
   const [currentStep, setCurrentStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
+  const { user } = useAuth()
   const {
     wizardData,
     updateWizardData,
@@ -91,6 +93,7 @@ export function ContractWizard({ method, onClose, onSuccess }: ContractWizardPro
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.id}`
         },
         body: JSON.stringify(wizardData)
       })

@@ -82,11 +82,11 @@ Return ONLY valid JSON with this structure:
   ],
   "payment_schedule": [
     {
-      "payment_number": "number - Payment sequence",
-      "due_date": "YYYY-MM-DD - Due date",
-      "amount": "number - Payment amount",
-      "percentage": "number - Percentage of total",
-      "description": "string - Payment description"
+      "payment_number": "number - Payment sequence (1, 2, 3, etc.)",
+      "due_date": "string - Due date (e.g., 'Upon contract signing', '90 days before arrival', or YYYY-MM-DD)",
+      "amount": "number - Calculated payment amount based on percentage",
+      "percentage": "number - Percentage of total value (e.g., 20, 30, 50)",
+      "description": "string - Payment description (e.g., 'Non-refundable deposit', 'Final payment')"
     }
   ],
   "release_schedule": [
@@ -134,7 +134,7 @@ IMPORTANT RULES:
 - Extract numbers as actual numbers, not strings
 - Be thorough - extract as much information as possible
 - If you see multiple room types, create multiple room_requirements entries
-- If you see payment milestones, create payment_schedule entries
+- If you see payment milestones, create payment_schedule entries with both percentage and calculated amount
 - If you see release dates, create release_schedule entries
 - Extract contact information for both supplier and client
 - Look for special terms, surcharges, and additional fees
@@ -370,10 +370,31 @@ export async function POST(request: NextRequest) {
         payment_schedule: [
           {
             payment_number: 1,
-            due_date: "2024-02-01",
-            amount: 100000,
+            due_date: "Upon contract signing",
+            amount: 9720,
             percentage: 20,
-            description: "Initial payment"
+            description: "Non-refundable deposit upon contract signing"
+          },
+          {
+            payment_number: 2,
+            due_date: "90 days before arrival",
+            amount: 14580,
+            percentage: 30,
+            description: "Payment 90 days before arrival"
+          },
+          {
+            payment_number: 3,
+            due_date: "60 days before arrival",
+            amount: 14580,
+            percentage: 30,
+            description: "Payment 60 days before arrival"
+          },
+          {
+            payment_number: 4,
+            due_date: "30 days before arrival",
+            amount: 9720,
+            percentage: 20,
+            description: "Final payment 30 days before arrival"
           }
         ],
         release_schedule: [

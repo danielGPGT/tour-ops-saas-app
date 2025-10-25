@@ -1,20 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    // Create server-side Supabase client with service role key
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
     
-    // Get user and organization
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Get user ID from Authorization header
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Missing authorization header' }, { status: 401 })
+    }
+    
+    const userId = authHeader.replace('Bearer ', '')
+    if (!userId) {
+      return NextResponse.json({ error: 'Invalid user ID' }, { status: 401 })
     }
 
     const { data: profile } = await supabase
       .from('users')
       .select('organization_id')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (!profile?.organization_id) {
@@ -22,10 +37,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    console.log('📦 Received wizard data:', JSON.stringify(body, null, 2))
+    
     const { contract, allocations, payments, rates } = body
+    console.log('📋 Contract data:', contract)
+    console.log('📋 Allocations data:', allocations)
+    console.log('📋 Payments data:', payments)
+    console.log('📋 Rates data:', rates)
 
     // Validate required fields
-    if (!contract.supplier_id || !contract.contract_number || !contract.contract_name) {
+    if (!contract?.supplier_id || !contract?.contract_number || !contract?.contract_name) {
+      console.log('❌ Missing required contract fields:', {
+        supplier_id: contract?.supplier_id,
+        contract_number: contract?.contract_number,
+        contract_name: contract?.contract_name
+      })
       return NextResponse.json({ error: 'Missing required contract fields' }, { status: 400 })
     }
 
@@ -53,7 +79,7 @@ export async function POST(request: NextRequest) {
         contract_document_url: contract.contract_document_url,
         contract_document_name: contract.contract_document_name,
         status: 'active',
-        created_by: user.id
+        created_by: userId
       })
       .select()
       .single()
@@ -64,7 +90,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create allocations
+    console.log('🏗️ Creating allocations...', allocations)
     if (allocations && allocations.length > 0) {
+      console.log('📝 Processing', allocations.length, 'allocations')
       const allocationInserts = allocations.map((allocation: any) => ({
         contract_id: newContract.id,
         product_id: allocation.product_id,
@@ -86,13 +114,17 @@ export async function POST(request: NextRequest) {
         .insert(allocationInserts)
 
       if (allocationError) {
-        console.error('Allocation creation failed:', allocationError)
+        console.error('❌ Allocation creation failed:', allocationError)
         // Continue - don't fail the whole operation
+      } else {
+        console.log('✅ Allocations created successfully')
       }
     }
 
     // Create payment schedule
+    console.log('💳 Creating payments...', payments)
     if (payments && payments.length > 0) {
+      console.log('📝 Processing', payments.length, 'payments')
       const paymentInserts = payments.map((payment: any) => ({
         contract_id: newContract.id,
         payment_number: payment.payment_number,
@@ -111,8 +143,44 @@ export async function POST(request: NextRequest) {
         .insert(paymentInserts)
 
       if (paymentError) {
-        console.error('Payment creation failed:', paymentError)
+        console.error('❌ Payment creation failed:', paymentError)
         // Continue - don't fail the whole operation
+      } else {
+        console.log('✅ Payments created successfully')
+      }
+    }
+
+    // Create rates
+    console.log('💰 Creating rates...', rates)
+    if (rates && rates.length > 0) {
+      console.log('📝 Processing', rates.length, 'rates')
+      const rateInserts = rates.map((rate: any) => ({
+        contract_id: newContract.id,
+        product_id: rate.product_id,
+        rate_name: rate.rate_name,
+        rate_type: rate.rate_type || 'per_night',
+        base_rate: rate.base_rate,
+        surcharge: rate.surcharge || 0,
+        total_rate: rate.total_rate,
+        currency: rate.currency || contract.currency,
+        valid_from: rate.valid_from || contract.valid_from,
+        valid_to: rate.valid_to || contract.valid_to,
+        min_nights: rate.min_nights,
+        max_nights: rate.max_nights,
+        includes: rate.includes,
+        notes: rate.notes,
+        is_active: rate.is_active !== false
+      }))
+
+      const { error: rateError } = await supabase
+        .from('contract_rates')
+        .insert(rateInserts)
+
+      if (rateError) {
+        console.error('❌ Rate creation failed:', rateError)
+        // Continue - don't fail the whole operation
+      } else {
+        console.log('✅ Rates created successfully')
       }
     }
 
