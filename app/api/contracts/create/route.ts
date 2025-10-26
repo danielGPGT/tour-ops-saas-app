@@ -79,7 +79,8 @@ export async function POST(request: NextRequest) {
         contract_document_url: contract.contract_document_url,
         contract_document_name: contract.contract_document_name,
         status: 'active',
-        created_by: userId
+        created_by: userId,
+        is_quick_entry: contract.is_quick_entry || false
       })
       .select()
       .single()

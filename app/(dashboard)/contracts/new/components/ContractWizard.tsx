@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { WizardProgress } from './WizardProgress'
 import { WizardNavigation } from './WizardNavigation'
+import { ContractTypeSelector } from './ContractTypeSelector'
+import { QuickPurchaseForm } from './QuickPurchaseForm'
+import { QuickOnRequestForm } from './QuickOnRequestForm'
 import { Step0Upload } from './Step0Upload'
 import { Step1Basics } from './Step1Basics'
 import { Step2Allocations } from './Step2Allocations'
@@ -12,13 +15,16 @@ import { useAutoSave } from '../hooks/useAutoSave'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { toast } from 'sonner'
 
+type ContractType = 'hotel_allocation' | 'batch_purchase' | 'series' | 'on_request'
+
 interface ContractWizardProps {
-  method: 'pdf' | 'manual'
+  method?: 'pdf' | 'manual'
   onClose: () => void
   onSuccess?: () => void
 }
 
 export function ContractWizard({ method, onClose, onSuccess }: ContractWizardProps) {
+  const [contractType, setContractType] = useState<ContractType | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
@@ -50,6 +56,24 @@ export function ContractWizard({ method, onClose, onSuccess }: ContractWizardPro
     { id: 2, title: 'Allocations', description: 'Inventory and release schedule' },
     { id: 3, title: 'Rates', description: 'Optional rate setup' }
   ]
+
+  const handleContractTypeSelect = (type: ContractType) => {
+    setContractType(type)
+    
+    // For quick entry forms, skip the multi-step wizard
+    if (type === 'batch_purchase' || type === 'on_request') {
+      setCurrentStep(0) // Will render the quick form
+    } else {
+      // For complex contracts, start with step 0 (upload/extract)
+      setCurrentStep(0)
+    }
+  }
+
+  const handleQuickFormSave = (data: any) => {
+    toast.success('Contract created successfully!')
+    onSuccess?.()
+    onClose()
+  }
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -120,11 +144,41 @@ export function ContractWizard({ method, onClose, onSuccess }: ContractWizardPro
   }
 
   const renderCurrentStep = () => {
+    // Show contract type selector first
+    if (!contractType) {
+      return (
+        <ContractTypeSelector
+          onSelectType={handleContractTypeSelect}
+          onClose={onClose}
+        />
+      )
+    }
+
+    // Show quick entry forms
+    if (contractType === 'batch_purchase') {
+      return (
+        <QuickPurchaseForm
+          onSave={handleQuickFormSave}
+          onCancel={onClose}
+        />
+      )
+    }
+
+    if (contractType === 'on_request') {
+      return (
+        <QuickOnRequestForm
+          onSave={handleQuickFormSave}
+          onCancel={onClose}
+        />
+      )
+    }
+
+    // Show multi-step wizard for complex contracts
     switch (currentStep) {
       case 0:
         return (
           <Step0Upload
-            method={method}
+            method={method || 'manual'}
             extractedData={extractedData}
             onExtractedData={setExtractedData}
             onNext={handleNext}
@@ -169,30 +223,34 @@ export function ContractWizard({ method, onClose, onSuccess }: ContractWizardPro
 
   return (
     <div className="flex flex-col h-full">
-      {/* Progress Indicator */}
-      <WizardProgress 
-        steps={steps}
-        currentStep={currentStep}
-        onStepChange={handleStepChange}
-      />
+      {/* Progress Indicator - only for complex contracts */}
+      {contractType && contractType !== 'batch_purchase' && contractType !== 'on_request' && (
+        <WizardProgress 
+          steps={steps}
+          currentStep={currentStep}
+          onStepChange={handleStepChange}
+        />
+      )}
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-6">
         {renderCurrentStep()}
       </div>
 
-      {/* Navigation */}
-      <WizardNavigation
-        currentStep={currentStep}
-        totalSteps={steps.length}
-        onNext={handleNext}
-        onPrevious={handlePrevious}
-        onSubmit={handleSubmit}
-        isSubmitting={isSubmitting}
-        canNext={currentStep < steps.length - 1}
-        canSubmit={currentStep === steps.length - 1}
-        hasUnsavedChanges={hasUnsavedChanges}
-      />
+      {/* Navigation - only for complex contracts */}
+      {contractType && contractType !== 'batch_purchase' && contractType !== 'on_request' && (
+        <WizardNavigation
+          currentStep={currentStep}
+          totalSteps={steps.length}
+          onNext={handleNext}
+          onPrevious={handlePrevious}
+          onSubmit={handleSubmit}
+          isSubmitting={isSubmitting}
+          canNext={currentStep < steps.length - 1}
+          canSubmit={currentStep === steps.length - 1}
+          hasUnsavedChanges={hasUnsavedChanges}
+        />
+      )}
     </div>
   )
 }
