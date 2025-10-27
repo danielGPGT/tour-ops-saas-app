@@ -1,166 +1,140 @@
+/**
+ * Contract types matching the database schema
+ * Based on regenerated types from Supabase database
+ */
+
+// Contract status enum from database
+export type ContractStatus = 'draft' | 'active' | 'expired' | 'cancelled'
+
+// Contract type enum
+export type ContractType = 'net_rate' | 'commissionable' | 'allocation' | 'on_request' | string
+
+/**
+ * Main Contract interface matching database schema
+ */
 export interface Contract {
+  // Core fields
   id: string
   organization_id: string
-  supplier_id: string
-  contract_number: string
-  contract_name?: string
+  supplier_id: string | null
   
-  // Contract Type (NEW)
-  contract_type: 'net_rate' | 'commissionable' | 'allocation' | 'on_request'
+  // Event linkage
+  event_id: string | null
+  
+  // Contract basics
+  contract_number: string
+  contract_name: string | null
+  contract_type: string | null
+  
+  // Validity dates
+  valid_from: string
+  valid_to: string
+  
+  // Financial
+  currency: string | null
+  total_cost: number | null
+  commission_rate: number | null
+  
+  // Terms (TEXT fields)
+  payment_terms: string | null
+  cancellation_policy: string | null
+  terms_and_conditions: string | null
+  
+  // Documents
+  contract_files: any[] | null
+  
+  // Notes
+  notes: string | null
+  
+  // Status
+  status: ContractStatus | null
+  
+  // Audit
+  created_at: string | null
+  updated_at: string | null
+  created_by: string | null
+}
+
+/**
+ * Contract allocation type
+ */
+export type AllocationType = 'allotment' | 'batch' | 'free_sell' | 'on_request'
+
+/**
+ * Contract allocation matching database schema
+ */
+export interface ContractAllocation {
+  // Core fields
+  id: string
+  organization_id: string
+  contract_id: string
+  product_id: string
+  
+  // Allocation details
+  allocation_name: string | null
+  allocation_type: string // Will be AllocationType in practice
+  
+  // Quantity
+  total_quantity: number | null
   
   // Dates
   valid_from: string
   valid_to: string
-  signed_date?: string
   
-  // Financial
-  currency: string
-  commission_rate?: number
-  commission_type: 'percentage' | 'fixed_amount' | 'tiered' | 'none'
+  // Pricing
+  total_cost: number | null
+  cost_per_unit: number | null
+  currency: string | null
   
-  // Operational
-  booking_cutoff_days?: number
+  // Release days
+  release_days: number | null
   
-  // Documents
-  signed_document_url?: string
-  contract_files?: any[]
-  
-  // Terms
-  terms_and_conditions?: string
-  special_terms?: string
-  notes?: string
+  // Notes
+  notes: string | null
   
   // Status
-  status: 'draft' | 'active' | 'expired' | 'terminated' | 'suspended'
+  is_active: boolean | null
   
   // Audit
-  created_by?: string
-  updated_by?: string
-  created_at: string
-  updated_at: string
-  
-  // Relations
-  supplier?: Supplier
-  allocations?: ContractAllocation[]
-  rates?: SupplierRate[]
-  payment_schedules?: ContractPaymentSchedule[]
-  cancellation_policies?: ContractCancellationPolicy[]
-  commission_tiers?: ContractCommissionTier[]
+  created_at: string | null
+  updated_at: string | null
 }
 
-export interface Supplier {
-  id: string
-  name: string
-  code: string
-  supplier_type: string
-  contact_info: ContactInfo
-  is_active: boolean
-}
-
-export interface ContactInfo {
-  primary_contact: string
-  email: string
-  phone: string
-  address: Address
-  website?: string
-}
-
-export interface Address {
-  street?: string
-  city: string
-  country: string
-  postal_code?: string
-}
-
-export interface PaymentTerms {
-  payment_method: string
-  credit_days: number
-  terms: string
-}
-
-export interface ContractTerms {
-  cancellation_policy: string
-  force_majeure: string
-  liability: string
-  insurance_requirements: string
-  special_conditions: string
-}
-
-export interface ContractAttachment {
-  id: string
-  filename: string
-  file_url: string
-  file_type: string
-  file_size: number
-  uploaded_at: string
-}
-
-export interface ContractAllocation {
-  id: string
-  contract_id: string
-  product_id: string
-  allocation_name: string
-  allocation_type: 'allotment' | 'free_sell' | 'on_request'
-  valid_from: string
-  valid_to: string
-  min_nights?: number
-  max_nights?: number
-  release_days: number
-  dow_arrival: string[]
-  allow_overbooking: boolean
-  is_active: boolean
-  created_at: string
-  updated_at: string
-  
-  // Relations
-  product?: Product
-  inventory?: AllocationInventory[]
-}
-
-export interface Product {
-  id: string
-  name: string
-  code: string
-  product_type: string
-  location: Location
-  is_active: boolean
-}
-
-export interface Location {
-  address: string
-  city: string
-  country: string
-  coordinates?: {
-    lat: number
-    lng: number
-  }
-}
-
+/**
+ * Allocation inventory matching database schema
+ */
 export interface AllocationInventory {
   id: string
-  allocation_id: string
+  contract_allocation_id: string // Fixed: was allocation_id
   product_option_id: string
-  total_quantity: number
-  flexible_configuration: boolean
-  alternate_option_ids: string[]
-  created_at: string
-  updated_at: string
   
-  // Relations
-  product_option?: ProductOption
+  // Quantity tracking
+  total_quantity: number
+  available_quantity: number
+  sold_quantity: number | null
+  
+  // Cost
+  batch_cost_per_unit: number | null
+  currency: string | null
+  
+  // Flags
+  is_virtual_capacity: boolean | null
+  minimum_viable_quantity: number | null
+  
+  // Notes
+  notes: string | null
+  
+  // Status
+  is_active: boolean | null
+  
+  // Audit
+  created_at: string | null
+  updated_at: string | null
 }
 
-export interface ProductOption {
-  id: string
-  product_id: string
-  option_name: string
-  option_code: string
-  standard_occupancy: number
-  max_occupancy: number
-  bed_configuration?: string
-  is_active: boolean
-}
-
+/**
+ * Supplier rate
+ */
 export interface SupplierRate {
   id: string
   contract_id: string
@@ -169,171 +143,72 @@ export interface SupplierRate {
   rate_name: string
   valid_from: string
   valid_to: string
-  rate_basis: 'per_room_per_night' | 'per_ticket' | 'per_person' | 'per_booking'
+  rate_basis: 'per_night' | 'per_person' | 'per_unit'
   currency: string
   priority: number
   is_active: boolean
   created_at: string
   updated_at: string
-  
-  // Relations
-  product?: Product
-  product_option?: ProductOption
-  occupancy_costs?: RateOccupancyCost[]
 }
 
-export interface RateOccupancyCost {
-  id: string
-  supplier_rate_id: string
-  occupancy: number
-  base_cost: number
-  adult_cost: number
-  child_cost: number
-  board_basis: string
-  currency: string
-}
-
-// New related types for the updated schema
-export interface ContractPaymentSchedule {
-  id: string
-  contract_id: string
-  payment_stage: string
-  payment_type: 'percentage' | 'fixed_amount'
-  percentage?: number
-  fixed_amount?: number
-  due_type: 'days_before_arrival' | 'days_after_booking' | 'fixed_date'
-  days_before?: number
-  days_after?: number
-  due_date?: string
-  description?: string
-  is_mandatory: boolean
-  sort_order: number
-  created_at: string
-}
-
-export interface ContractCancellationPolicy {
-  id: string
-  contract_id: string
-  days_before_from?: number
-  days_before_to?: number
-  penalty_type: 'none' | 'percentage' | 'fixed_amount' | 'forfeit_deposit' | 'forfeit_all'
-  penalty_percentage?: number
-  penalty_amount?: number
-  description?: string
-  applies_to: 'all' | 'deposit_only' | 'balance_only'
-  sort_order: number
-  created_at: string
-}
-
-export interface ContractCommissionTier {
-  id: string
-  contract_id: string
-  revenue_from: number
-  revenue_to?: number
-  commission_rate: number
-  sort_order: number
-  created_at: string
-}
-
-export interface ContractDeadline {
-  id: string
-  organization_id: string
-  ref_type: 'contract' | 'allocation' | 'booking'
-  ref_id: string
-  deadline_type: string
-  deadline_date?: string
-  days_before_arrival?: number
-  calculate_from?: 'arrival' | 'departure' | 'booking_date'
-  penalty_type?: 'none' | 'percentage' | 'fixed_amount' | 'forfeit_deposit' | 'forfeit_all'
-  penalty_value?: number
-  penalty_description?: string
-  status: 'pending' | 'met' | 'missed' | 'waived' | 'not_applicable'
-  actioned_at?: string
-  actioned_by?: string
-  reminder_sent_at?: string
-  notification_days_before: number
-  notes?: string
-  created_at: string
-  updated_at: string
-}
-
-// Form data types
+/**
+ * Form data for creating/updating a contract
+ */
 export interface ContractFormData {
-  supplier_id: string
-  contract_name?: string
-  contract_type: 'net_rate' | 'commissionable' | 'allocation' | 'on_request'
+  supplier_id: string | null
+  event_id?: string | null
+  contract_name?: string | null
+  contract_type?: string | null
   valid_from: string
   valid_to: string
-  signed_date?: string
-  currency: string
-  commission_rate?: number
-  commission_type: 'percentage' | 'fixed_amount' | 'tiered' | 'none'
-  booking_cutoff_days?: number
-  signed_document_url?: string
-  terms_and_conditions?: string
-  special_terms?: string
-  notes?: string
-  status: 'draft' | 'active' | 'expired' | 'terminated' | 'suspended'
+  currency?: string | null
+  total_cost?: number | null
+  commission_rate?: number | null
+  payment_terms?: string | null
+  cancellation_policy?: string | null
+  terms_and_conditions?: string | null
+  contract_files?: any[] | null
+  notes?: string | null
+  status?: ContractStatus | null
 }
 
+/**
+ * Form data for creating/updating an allocation
+ */
 export interface ContractAllocationFormData {
   product_id: string
-  allocation_name: string
-  allocation_type: 'allotment' | 'free_sell' | 'on_request'
+  allocation_name?: string | null
+  allocation_type: AllocationType
+  total_quantity?: number | null
   valid_from: string
   valid_to: string
-  min_nights?: number
-  max_nights?: number
-  release_days: number
-  dow_arrival: string[]
-  allow_overbooking: boolean
+  total_cost?: number | null
+  cost_per_unit?: number | null
+  currency?: string | null
+  release_days?: number | null
+  notes?: string | null
 }
 
-export interface SupplierRateFormData {
-  product_id: string
-  product_option_id: string
-  rate_name: string
-  valid_from: string
-  valid_to: string
-  rate_basis: 'per_room_per_night' | 'per_ticket' | 'per_person' | 'per_booking'
-  currency: string
-  priority: number
-  occupancy_costs: RateOccupancyCostFormData[]
-}
-
-export interface RateOccupancyCostFormData {
-  occupancy: number
-  base_cost: number
-  adult_cost: number
-  child_cost: number
-  board_basis: string
-  currency: string
-}
-
-// Status and filter types
-export type ContractStatus = 'draft' | 'active' | 'expired' | 'terminated' | 'suspended'
-export type ContractType = 'net_rate' | 'commissionable' | 'allocation' | 'on_request'
-export type AllocationType = 'allotment' | 'free_sell' | 'on_request'
-export type RateBasis = 'per_room_per_night' | 'per_ticket' | 'per_person' | 'per_booking'
-
-// Statistics types
+/**
+ * Statistics about contracts
+ */
 export interface ContractStats {
   total_contracts: number
   active_contracts: number
   expired_contracts: number
   draft_contracts: number
-  terminated_contracts: number
-  suspended_contracts: number
   total_allocations: number
-  total_rates: number
   total_value: number
   currency: string
 }
 
-// Search and filter types
+/**
+ * Search and filter types
+ */
 export interface ContractFilters {
   status?: ContractStatus[]
   supplier_id?: string
+  event_id?: string
   date_from?: string
   date_to?: string
   currency?: string
@@ -343,4 +218,29 @@ export interface ContractFilters {
 export interface ContractSort {
   field: 'contract_name' | 'supplier_name' | 'valid_from' | 'valid_to' | 'status' | 'created_at'
   direction: 'asc' | 'desc'
+}
+
+// Legacy interfaces for backward compatibility (can be removed if not used)
+export interface Supplier {
+  id: string
+  name: string
+  code: string
+  supplier_type: string
+  is_active: boolean
+}
+
+export interface Product {
+  id: string
+  name: string
+  code: string
+  product_type: string
+  is_active: boolean
+}
+
+export interface ProductOption {
+  id: string
+  product_id: string
+  option_name: string
+  option_code: string
+  is_active: boolean
 }

@@ -28,49 +28,25 @@ export function SupplierSheetForm({ supplier, trigger, afterSubmit }: SupplierSh
     name: supplier.name || '',
     code: supplier.code || '',
     supplier_type: supplier.supplier_type || 'hotel',
-    contact_info: {
-      primary_contact: supplier.contact_info?.primary_contact || '',
-      email: supplier.contact_info?.email || '',
-      phone: supplier.contact_info?.phone || '',
-      address: {
-        street: supplier.contact_info?.address?.street || '',
-        city: supplier.contact_info?.address?.city || '',
-        country: supplier.contact_info?.address?.country || '',
-        postal_code: supplier.contact_info?.address?.postal_code || ''
-      },
-      website: supplier.contact_info?.website || ''
-    },
-    payment_terms: {
-      payment_method: supplier.payment_terms?.payment_method || '',
-      credit_days: supplier.payment_terms?.credit_days || 0,
-      terms: supplier.payment_terms?.terms || ''
-    },
-    commission_rate: supplier.commission_rate || undefined,
-    rating: supplier.rating || undefined,
+    email: supplier.email || '',
+    phone: supplier.phone || '',
+    address_line1: supplier.address_line1 || '',
+    city: supplier.city || '',
+    country: supplier.country || '',
+    default_currency: supplier.default_currency || 'USD',
+    notes: supplier.notes || '',
     is_active: supplier.is_active ?? true
   } : {
     name: '',
     code: '',
     supplier_type: 'hotel',
-    contact_info: {
-      primary_contact: '',
-      email: '',
-      phone: '',
-      address: {
-        street: '',
-        city: '',
-        country: '',
-        postal_code: ''
-      },
-      website: ''
-    },
-    payment_terms: {
-      payment_method: '',
-      credit_days: 0,
-      terms: ''
-    },
-    commission_rate: undefined,
-    rating: undefined,
+    email: '',
+    phone: '',
+    address_line1: '',
+    city: '',
+    country: '',
+    default_currency: 'USD',
+    notes: '',
     is_active: true
   }
 
@@ -161,33 +137,25 @@ export function SupplierSheetForm({ supplier, trigger, afterSubmit }: SupplierSh
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="commission_rate">Commission Rate (%)</Label>
-                    <Input
-                      id="commission_rate"
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={values.commission_rate || ''}
-                      onChange={(e) => set('commission_rate', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      placeholder="Enter commission rate"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="rating">Rating (1-5)</Label>
-                    <Input
-                      id="rating"
-                      type="number"
-                      step="0.1"
-                      min="1"
-                      max="5"
-                      value={values.rating || ''}
-                      onChange={(e) => set('rating', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      placeholder="Enter rating"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="default_currency">Default Currency</Label>
+                  <Select
+                    value={values.default_currency || 'USD'}
+                    onValueChange={(value) => set('default_currency', value as any)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD - US Dollar</SelectItem>
+                      <SelectItem value="EUR">EUR - Euro</SelectItem>
+                      <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                      <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
+                      <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
+                      <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
+                      <SelectItem value="CHF">CHF - Swiss Franc</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -208,103 +176,59 @@ export function SupplierSheetForm({ supplier, trigger, afterSubmit }: SupplierSh
             <Card>
               <CardHeader>
                 <CardTitle>Contact Information</CardTitle>
-                <CardDescription>Enter contact details and address</CardDescription>
+                <CardDescription>Enter supplier contact details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="primary_contact">Primary Contact *</Label>
-                  <Input
-                    id="primary_contact"
-                    value={values.contact_info.primary_contact}
-                    onChange={(e) => set('contact_info', { ...values.contact_info, primary_contact: e.target.value })}
-                    placeholder="Enter primary contact name"
-                  />
-                </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
                       type="email"
-                      value={values.contact_info.email}
-                      onChange={(e) => set('contact_info', { ...values.contact_info, email: e.target.value })}
+                      value={values.email || ''}
+                      onChange={(e) => set('email', e.target.value)}
                       placeholder="Enter email address"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone *</Label>
+                    <Label htmlFor="phone">Phone</Label>
                     <Input
                       id="phone"
-                      value={values.contact_info.phone}
-                      onChange={(e) => set('contact_info', { ...values.contact_info, phone: e.target.value })}
+                      value={values.phone || ''}
+                      onChange={(e) => set('phone', e.target.value)}
                       placeholder="Enter phone number"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="website">Website</Label>
+                  <Label htmlFor="address_line1">Address</Label>
                   <Input
-                    id="website"
-                    value={values.contact_info.website}
-                    onChange={(e) => set('contact_info', { ...values.contact_info, website: e.target.value })}
-                    placeholder="Enter website URL"
+                    id="address_line1"
+                    value={values.address_line1 || ''}
+                    onChange={(e) => set('address_line1', e.target.value)}
+                    placeholder="Enter street address"
                   />
                 </div>
 
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium">Address</h4>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="street">Street Address</Label>
+                    <Label htmlFor="city">City</Label>
                     <Input
-                      id="street"
-                      value={values.contact_info.address.street}
-                      onChange={(e) => set('contact_info', { 
-                        ...values.contact_info, 
-                        address: { ...values.contact_info.address, street: e.target.value }
-                      })}
-                      placeholder="Enter street address"
+                      id="city"
+                      value={values.city || ''}
+                      onChange={(e) => set('city', e.target.value)}
+                      placeholder="Enter city"
                     />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city">City</Label>
-                      <Input
-                        id="city"
-                        value={values.contact_info.address.city}
-                        onChange={(e) => set('contact_info', { 
-                          ...values.contact_info, 
-                          address: { ...values.contact_info.address, city: e.target.value }
-                        })}
-                        placeholder="Enter city"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="country">Country</Label>
-                      <Input
-                        id="country"
-                        value={values.contact_info.address.country}
-                        onChange={(e) => set('contact_info', { 
-                          ...values.contact_info, 
-                          address: { ...values.contact_info.address, country: e.target.value }
-                        })}
-                        placeholder="Enter country"
-                      />
-                    </div>
-                  </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="postal_code">Postal Code</Label>
+                    <Label htmlFor="country">Country (ISO Code)</Label>
                     <Input
-                      id="postal_code"
-                      value={values.contact_info.address.postal_code}
-                      onChange={(e) => set('contact_info', { 
-                        ...values.contact_info, 
-                        address: { ...values.contact_info.address, postal_code: e.target.value }
-                      })}
-                      placeholder="Enter postal code"
+                      id="country"
+                      value={values.country || ''}
+                      onChange={(e) => set('country', e.target.value.toUpperCase())}
+                      placeholder="US, GB, FR, etc."
+                      maxLength={2}
                     />
                   </div>
                 </div>
@@ -315,49 +239,18 @@ export function SupplierSheetForm({ supplier, trigger, afterSubmit }: SupplierSh
           <TabsContent value="payment" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Payment Terms</CardTitle>
-                <CardDescription>Configure payment terms and conditions</CardDescription>
+                <CardTitle>Additional Information</CardTitle>
+                <CardDescription>Add any additional notes about this supplier</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="payment_method">Payment Method *</Label>
-                  <Select
-                    value={values.payment_terms.payment_method}
-                    onValueChange={(value) => set('payment_terms', { ...values.payment_terms, payment_method: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="credit_card">Credit Card</SelectItem>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="check">Check</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="credit_days">Credit Days</Label>
-                  <Input
-                    id="credit_days"
-                    type="number"
-                    min="0"
-                    value={values.payment_terms.credit_days}
-                    onChange={(e) => set('payment_terms', { ...values.payment_terms, credit_days: parseInt(e.target.value) || 0 })}
-                    placeholder="Enter credit days"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="terms">Payment Terms</Label>
+                  <Label htmlFor="notes">Notes</Label>
                   <Textarea
-                    id="terms"
-                    value={values.payment_terms.terms}
-                    onChange={(e) => set('payment_terms', { ...values.payment_terms, terms: e.target.value })}
-                    placeholder="Enter payment terms and conditions"
-                    rows={3}
+                    id="notes"
+                    value={values.notes || ''}
+                    onChange={(e) => set('notes', e.target.value)}
+                    placeholder="Enter any additional notes about this supplier..."
+                    rows={5}
                   />
                 </div>
               </CardContent>

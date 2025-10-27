@@ -8,7 +8,6 @@ export async function getProductOptions(productId: string) {
     .from('product_options')
     .select('*')
     .eq('product_id', productId)
-    .order('sort_order', { ascending: true })
     .order('option_name', { ascending: true })
   
   if (error) throw error

@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { productSchema, type ProductFormData } from '@/lib/validations/product.schema'
 import { useProductTypes } from '@/lib/hooks/useProducts'
-import { MapPin, Star, Calendar, Clock, Car, Ticket, Tag } from 'lucide-react'
+import { MapPin, Star, Calendar, Clock, Car, Ticket } from 'lucide-react'
 import type { Product } from '@/lib/types/product'
 
 interface ProductFormProps {
@@ -33,6 +33,9 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
       code: product?.code || '',
       product_type_id: product?.product_type_id || '',
       description: product?.description || '',
+      supplier_id: product?.supplier_id || undefined,
+      venue_name: product?.venue_name || undefined,
+      event_id: product?.event_id || undefined,
       location: {
         city: product?.location?.city || '',
         country: product?.location?.country || '',
@@ -41,8 +44,6 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
         address: product?.location?.address || ''
       },
       attributes: product?.attributes || {},
-      tags: product?.tags || [],
-      images: product?.images || [],
       is_active: product?.is_active ?? true
     }
   })
@@ -54,31 +55,7 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
     onSubmit(data)
   }
 
-  const addTag = () => {
-    const currentTags = form.getValues('tags') || []
-    const newTag = prompt('Enter a tag:')
-    if (newTag && !currentTags.includes(newTag)) {
-      form.setValue('tags', [...currentTags, newTag])
-    }
-  }
 
-  const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues('tags') || []
-    form.setValue('tags', currentTags.filter(tag => tag !== tagToRemove))
-  }
-
-  const addAmenity = () => {
-    const currentAmenities = form.getValues('attributes.amenities') || []
-    const newAmenity = prompt('Enter an amenity:')
-    if (newAmenity && !currentAmenities.includes(newAmenity)) {
-      form.setValue('attributes.amenities', [...currentAmenities, newAmenity])
-    }
-  }
-
-  const removeAmenity = (amenityToRemove: string) => {
-    const currentAmenities = form.getValues('attributes.amenities') || []
-    form.setValue('attributes.amenities', currentAmenities.filter(amenity => amenity !== amenityToRemove))
-  }
 
   return (
     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
@@ -146,6 +123,15 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="venue_name">Venue Name</Label>
+                <Input
+                  id="venue_name"
+                  {...form.register('venue_name')}
+                  placeholder="Enter venue name"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
@@ -180,28 +166,20 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="city">City *</Label>
+                  <Label htmlFor="city">City</Label>
                   <Input
                     id="city"
                     {...form.register('location.city')}
                     placeholder="City"
-                    className={form.formState.errors.location?.city && 'border-red-500'}
                   />
-                  {form.formState.errors.location?.city && (
-                    <p className="text-sm text-red-500">{form.formState.errors.location.city.message}</p>
-                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="country">Country *</Label>
+                  <Label htmlFor="country">Country</Label>
                   <Input
                     id="country"
                     {...form.register('location.country')}
                     placeholder="Country"
-                    className={form.formState.errors.location?.country && 'border-red-500'}
                   />
-                  {form.formState.errors.location?.country && (
-                    <p className="text-sm text-red-500">{form.formState.errors.location.country.message}</p>
-                  )}
                 </div>
               </div>
 
@@ -458,22 +436,6 @@ export function ProductForm({ product, onSubmit, onCancel, isLoading }: ProductF
                   </div>
                 </div>
               )}
-
-              {/* Common tags */}
-              <div className="space-y-2">
-                <Label>Tags</Label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {form.watch('tags')?.map((tag, index) => (
-                    <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeTag(tag)}>
-                      {tag} ×
-                    </Badge>
-                  ))}
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={addTag}>
-                  <Tag className="h-4 w-4 mr-1" />
-                  Add Tag
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

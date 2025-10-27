@@ -28,9 +28,54 @@ export async function getSupplier(id: string) {
 
 export async function createSupplier(supplier: SupplierFormData & { organization_id: string }) {
   const supabase = createClient()
+  
+  // Ensure required fields are present
+  if (!supplier.name) {
+    throw new Error('Supplier name is required')
+  }
+  if (!supplier.code) {
+    throw new Error('Supplier code is required')
+  }
+  
+  // Prepare the data for insertion, only including defined fields
+  const insertData: any = {
+    organization_id: supplier.organization_id,
+    name: supplier.name,
+    code: supplier.code
+  }
+  
+  // Add optional fields only if they are defined
+  if (supplier.supplier_type !== undefined && supplier.supplier_type !== null) {
+    insertData.supplier_type = supplier.supplier_type
+  }
+  if (supplier.email !== undefined && supplier.email !== null && supplier.email !== '') {
+    insertData.email = supplier.email
+  }
+  if (supplier.phone !== undefined && supplier.phone !== null && supplier.phone !== '') {
+    insertData.phone = supplier.phone
+  }
+  if (supplier.address_line1 !== undefined && supplier.address_line1 !== null && supplier.address_line1 !== '') {
+    insertData.address_line1 = supplier.address_line1
+  }
+  if (supplier.city !== undefined && supplier.city !== null && supplier.city !== '') {
+    insertData.city = supplier.city
+  }
+  if (supplier.country !== undefined && supplier.country !== null && supplier.country !== '') {
+    insertData.country = supplier.country
+  }
+  if (supplier.default_currency !== undefined && supplier.default_currency !== null) {
+    insertData.default_currency = supplier.default_currency
+  }
+  if (supplier.notes !== undefined && supplier.notes !== null && supplier.notes !== '') {
+    insertData.notes = supplier.notes
+  }
+  if (supplier.is_active !== undefined) {
+    insertData.is_active = supplier.is_active
+  }
+  
   const { data, error } = await supabase
     .from('suppliers')
-    .insert(supplier)
+    .insert(insertData)
     .select()
     .single()
   

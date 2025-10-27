@@ -367,3 +367,91 @@ export function useDeleteCommissionTier() {
     }
   })
 }
+
+// ===== ALLOCATION RELEASES =====
+
+export function useAllocationReleases(allocationId: string) {
+  return useQuery({
+    queryKey: ['allocations', allocationId, 'releases'],
+    queryFn: () => contractQueries.getAllocationReleases(allocationId),
+    enabled: !!allocationId
+  })
+}
+
+export function useCreateAllocationRelease() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (data: any) => contractQueries.createAllocationRelease(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['allocations', variables.contract_allocation_id, 'releases'] })
+    }
+  })
+}
+
+export function useUpdateAllocationRelease() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      contractQueries.updateAllocationRelease(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allocations'] })
+    }
+  })
+}
+
+export function useDeleteAllocationRelease() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (id: string) => contractQueries.deleteAllocationRelease(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allocations'] })
+    }
+  })
+}
+
+// ===== ALLOCATION INVENTORY =====
+
+export function useAllocationInventory(allocationId: string) {
+  return useQuery({
+    queryKey: ['allocations', allocationId, 'inventory'],
+    queryFn: () => contractQueries.getAllocationInventory(allocationId),
+    enabled: !!allocationId
+  })
+}
+
+export function useCreateAllocationInventory() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (data: any) => contractQueries.createAllocationInventory(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['allocations', variables.contract_allocation_id, 'inventory'] })
+    }
+  })
+}
+
+export function useUpdateAllocationInventory() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      contractQueries.updateAllocationInventory(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allocations'] })
+    }
+  })
+}
+
+export function useDeleteAllocationInventory() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (id: string) => contractQueries.deleteAllocationInventory(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allocations'] })
+    }
+  })
+}

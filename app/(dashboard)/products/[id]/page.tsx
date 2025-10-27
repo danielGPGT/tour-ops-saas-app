@@ -131,8 +131,6 @@ export default function ProductDetailsPage() {
 
     const totalOptions = options?.length || 0
     const activeOptions = options?.filter(o => o.is_active).length || 0
-    const totalImages = (product.media as any[])?.length || 0
-    const hasTags = (product.tags as any[])?.length || 0
 
     return [
     {
@@ -145,22 +143,6 @@ export default function ProductDetailsPage() {
           direction: 'neutral' as const
         }
       },
-      {
-        id: 'images',
-        label: 'Images',
-        value: totalImages.toString(),
-        icon: <ImageIcon className="h-4 w-4" />,
-        trend: {
-          value: `${totalImages} / 5 max`,
-          direction: 'neutral' as const
-        }
-    },
-    {
-      id: 'tags',
-      label: 'Tags',
-        value: hasTags.toString(),
-      icon: <Tag className="h-4 w-4" />
-    },
     {
         id: 'updated',
         label: 'Last Updated',
@@ -214,14 +196,29 @@ export default function ProductDetailsPage() {
       )
     },
     {
-      key: 'standard_occupancy',
-      header: 'Occupancy',
-      width: 'w-[120px]',
+      key: 'base_price',
+      header: 'Price',
+      width: 'w-[100px]',
       render: (item) => (
         <div className="text-sm text-center">
-          <span className="font-medium">{item.standard_occupancy}</span>
-          {item.max_occupancy && (
-            <span className="text-muted-foreground"> / {item.max_occupancy}</span>
+          {item.base_price ? (
+            <span className="font-medium">{item.base_price?.toFixed(2)} {item.currency || 'USD'}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'base_cost',
+      header: 'Cost',
+      width: 'w-[100px]',
+      render: (item) => (
+        <div className="text-sm text-center">
+          {item.base_cost ? (
+            <span className="font-medium">{item.base_cost?.toFixed(2)} {item.currency || 'USD'}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
           )}
         </div>
       )

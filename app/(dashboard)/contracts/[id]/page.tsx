@@ -4,10 +4,6 @@ import React from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useContract, useUpdateContract, useDeleteContract } from '@/lib/hooks/useContracts'
 import { useSuppliers } from '@/lib/hooks/useSuppliers'
-import { PaymentSchedulesSection } from '@/components/contracts/payment-schedules-section'
-import { CancellationPoliciesSection } from '@/components/contracts/cancellation-policies-section'
-import { DeadlinesSection } from '@/components/contracts/deadlines-section'
-import { CommissionTiersSection } from '@/components/contracts/commission-tiers-section'
 import { ContractAllocationsSection } from '@/components/contracts/contract-allocations-section'
 import { SupplierRatesSection } from '@/components/contracts/supplier-rates-section'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -245,13 +241,9 @@ export default function ContractDetailsPage() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="terms">Terms & Conditions</TabsTrigger>
-          <TabsTrigger value="payments">Payment Schedule</TabsTrigger>
-          <TabsTrigger value="cancellation">Cancellation Policy</TabsTrigger>
+          <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="allocations">Allocations</TabsTrigger>
-          <TabsTrigger value="deadlines">Deadlines</TabsTrigger>
           <TabsTrigger value="rates">Rates</TabsTrigger>
-          <TabsTrigger value="commission">Commission Tiers</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -314,7 +306,11 @@ export default function ContractDetailsPage() {
                 />
                 <DetailRow
                   label="Contact Email"
-                  value={supplier?.contact_info?.email || 'N/A'}
+                  value={supplier?.email || 'N/A'}
+                />
+                <DetailRow
+                  label="Phone"
+                  value={supplier?.phone || 'N/A'}
                 />
               </div>
             </InfoCard>
@@ -361,32 +357,6 @@ export default function ContractDetailsPage() {
                   )}
                 </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-muted-foreground">Signed Date</label>
-                  {isLoading ? (
-                    <div className="h-10 w-full bg-muted animate-pulse rounded-md" />
-                  ) : (
-                    <DatePicker
-                      date={contract?.signed_date ? new Date(contract.signed_date) : undefined}
-                      onDateChange={(date) => {
-                        if (date) {
-                          handleUpdate('signed_date', date.toISOString().split('T')[0])
-                        } else {
-                          handleUpdate('signed_date', null)
-                        }
-                      }}
-                      placeholder="Select signed date"
-                    />
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-muted-foreground">Booking Cutoff</label>
-                  <EnterpriseInlineEdit
-                    value={contract.booking_cutoff_days ? `${contract.booking_cutoff_days}` : ''}
-                    onSave={(value) => handleUpdate('booking_cutoff_days', parseInt(value) || null)}
-                    placeholder="Days before arrival"
-                  />
-                </div>
               </div>
             </InfoCard>
 
@@ -412,11 +382,11 @@ export default function ContractDetailsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-muted-foreground">Commission Type</label>
+                  <label className="text-sm font-medium text-muted-foreground">Total Cost</label>
                   <EnterpriseInlineEdit
-                    value={contract.commission_type || ''}
-                    onSave={(value) => handleUpdate('commission_type', value)}
-                    placeholder="Select commission type"
+                    value={contract.total_cost ? `${contract.total_cost}` : ''}
+                    onSave={(value) => handleUpdate('total_cost', parseFloat(value) || null)}
+                    placeholder="Total contract value"
                   />
                 </div>
               </div>
@@ -424,13 +394,14 @@ export default function ContractDetailsPage() {
           </div>
         </TabsContent>
 
-        {/* Terms & Conditions Tab */}
-        <TabsContent value="terms" className="space-y-6">
-          <InfoCard
-            title="Terms & Conditions"
-            icon={<FileText className="h-5 w-5" />}
-          >
-            <div className="space-y-4">
+        {/* Details Tab - All TEXT fields in one place */}
+        <TabsContent value="details" className="space-y-6">
+          <div className="grid grid-cols-1 gap-6">
+            {/* Terms & Conditions */}
+            <InfoCard
+              title="Terms & Conditions"
+              icon={<FileText className="h-5 w-5" />}
+            >
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Terms and Conditions</label>
                 <EnterpriseInlineEdit
@@ -440,15 +411,45 @@ export default function ContractDetailsPage() {
                   multiline
                 />
               </div>
+            </InfoCard>
+
+            {/* Payment Terms */}
+            <InfoCard
+              title="Payment Terms"
+              icon={<DollarSign className="h-5 w-5" />}
+            >
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Special Terms</label>
+                <label className="text-sm font-medium text-muted-foreground">Payment Terms</label>
                 <EnterpriseInlineEdit
-                  value={contract.special_terms || 'No special terms'}
-                  onSave={(value) => handleUpdate('special_terms', value)}
-                  placeholder="Enter special terms"
+                  value={contract.payment_terms || 'No payment terms specified'}
+                  onSave={(value) => handleUpdate('payment_terms', value)}
+                  placeholder="Enter payment terms"
                   multiline
                 />
               </div>
+            </InfoCard>
+
+            {/* Cancellation Policy */}
+            <InfoCard
+              title="Cancellation Policy"
+              icon={<AlertCircle className="h-5 w-5" />}
+            >
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Cancellation Policy</label>
+                <EnterpriseInlineEdit
+                  value={contract.cancellation_policy || 'No cancellation policy specified'}
+                  onSave={(value) => handleUpdate('cancellation_policy', value)}
+                  placeholder="Enter cancellation policy"
+                  multiline
+                />
+              </div>
+            </InfoCard>
+
+            {/* Notes */}
+            <InfoCard
+              title="Additional Notes"
+              icon={<FileText className="h-5 w-5" />}
+            >
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Notes</label>
                 <EnterpriseInlineEdit
@@ -458,18 +459,8 @@ export default function ContractDetailsPage() {
                   multiline
                 />
               </div>
-            </div>
-          </InfoCard>
-        </TabsContent>
-
-        {/* Payment Schedule Tab */}
-        <TabsContent value="payments" className="space-y-6">
-          <PaymentSchedulesSection contractId={contract.id} currency={contract.currency} />
-        </TabsContent>
-
-        {/* Cancellation Policy Tab */}
-        <TabsContent value="cancellation" className="space-y-6">
-          <CancellationPoliciesSection contractId={contract.id} currency={contract.currency} />
+            </InfoCard>
+          </div>
         </TabsContent>
 
         {/* Allocations Tab */}
@@ -477,19 +468,9 @@ export default function ContractDetailsPage() {
           <ContractAllocationsSection contractId={contract.id} />
         </TabsContent>
 
-        {/* Deadlines Tab */}
-        <TabsContent value="deadlines" className="space-y-6">
-          <DeadlinesSection refType="contract" refId={contract.id} />
-        </TabsContent>
-
         {/* Rates Tab */}
         <TabsContent value="rates" className="space-y-6">
-          <SupplierRatesSection contractId={contract.id} />
-        </TabsContent>
-
-        {/* Commission Tiers Tab */}
-        <TabsContent value="commission" className="space-y-6">
-          <CommissionTiersSection contractId={contract.id} />
+          <SupplierRatesSection contractId={contract.id} organizationId={contract.organization_id} />
         </TabsContent>
       </Tabs>
 

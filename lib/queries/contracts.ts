@@ -253,7 +253,11 @@ export async function getSupplierRates(contractId: string) {
   
   let query = supabase
     .from('supplier_rates')
-    .select('*')
+    .select(`
+      *,
+      product:products(id, name, code),
+      product_option:product_options(id, option_name)
+    `)
     .eq('contract_id', contractId)
     .order('created_at', { ascending: false })
   
@@ -272,16 +276,18 @@ export async function getSupplierRates(contractId: string) {
 }
 
 export async function createSupplierRate(
-  contractId: string,
-  rate: SupplierRateFormData & { organization_id: string }
+  data: { contract_id: string; organization_id: string; [key: string]: any }
 ) {
   const supabase = createClient()
   
-  const { data: rateData, error: rateError } = await supabase
+  const { contract_id, organization_id, ...rateData } = data
+  
+  const { data: insertedRate, error: rateError } = await supabase
     .from('supplier_rates')
     .insert({
-      ...rate,
-      contract_id: contractId,
+      ...rateData,
+      contract_id,
+      organization_id,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
@@ -290,21 +296,7 @@ export async function createSupplierRate(
   
   if (rateError) throw rateError
   
-  // Create occupancy costs
-  if (rate.occupancy_costs && rate.occupancy_costs.length > 0) {
-    const { error: costsError } = await supabase
-      .from('rate_occupancy_costs')
-      .insert(
-        rate.occupancy_costs.map((cost: any) => ({
-          ...cost,
-          supplier_rate_id: rateData.id
-        }))
-      )
-    
-    if (costsError) throw costsError
-  }
-  
-  return rateData
+  return insertedRate
 }
 
 export async function updateSupplierRate(
@@ -614,6 +606,118 @@ export async function deleteCommissionTier(id: string) {
   const supabase = createClient()
   const { error } = await supabase
     .from('contract_commission_tiers')
+    .delete()
+    .eq('id', id)
+  
+  if (error) throw error
+}
+
+// ===== ALLOCATION RELEASES =====
+
+export async function getAllocationReleases(allocationId: string) {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from('allocation_releases')
+    .select('*')
+    .eq('contract_allocation_id', allocationId)
+    .order('release_date', { ascending: true })
+  
+  if (error) throw error
+  return data || []
+}
+
+export async function createAllocationRelease(release: any) {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from('allocation_releases')
+    .insert(release)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+export async function updateAllocationRelease(id: string, updates: any) {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from('allocation_releases')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+export async function deleteAllocationRelease(id: string) {
+  const supabase = createClient()
+  
+  const { error } = await supabase
+    .from('allocation_releases')
+    .delete()
+    .eq('id', id)
+  
+  if (error) throw error
+}
+
+// ===== ALLOCATION INVENTORY =====
+
+export async function getAllocationInventory(allocationId: string) {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from('allocation_inventory')
+    .select(`
+      *,
+      product_option:product_options(
+        id,
+        option_name,
+        option_code
+      )
+    `)
+    .eq('contract_allocation_id', allocationId)
+  
+  if (error) throw error
+  return data || []
+}
+
+export async function createAllocationInventory(inventory: any) {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from('allocation_inventory')
+    .insert(inventory)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+export async function updateAllocationInventory(id: string, updates: any) {
+  const supabase = createClient()
+  
+  const { data, error } = await supabase
+    .from('allocation_inventory')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+export async function deleteAllocationInventory(id: string) {
+  const supabase = createClient()
+  
+  const { error } = await supabase
+    .from('allocation_inventory')
     .delete()
     .eq('id', id)
   

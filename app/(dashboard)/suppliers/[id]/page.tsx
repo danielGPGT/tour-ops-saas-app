@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Trash2, Building, Phone, Mail, Globe, MapPin, Star, TrendingUp, DollarSign, Calendar, Users, FileText, Copy, Download, Share2 } from 'lucide-react'
+import { ArrowLeft, Trash2, Building, Phone, Mail, Globe, MapPin, TrendingUp, DollarSign, Calendar, Users, FileText, Copy, Download, Share2, Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +17,7 @@ import { ActionButtons } from '@/components/common/ActionButtons'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { InlineEditHint } from '@/components/common/InlineEditHint'
 import { useSupplier, useDeleteSupplier } from '@/lib/hooks/useSuppliers'
+import { useContracts } from '@/lib/hooks/useContracts'
 import { formatDate } from '@/lib/utils/formatting'
 import { 
   SupplierInlineEdit, 
@@ -25,6 +26,7 @@ import {
   SupplierStatusEdit 
 } from '@/components/suppliers/SupplierInlineEditWrapper'
 import { PageSkeleton } from '@/components/common/LoadingSkeleton'
+import { ContractList } from '@/components/contracts/contract-list'
 
 export default function SupplierDetailsPage() {
   const params = useParams()
@@ -34,6 +36,12 @@ export default function SupplierDetailsPage() {
   
   const { data: supplier, isLoading } = useSupplier(supplierId)
   const deleteSupplier = useDeleteSupplier()
+  
+  // Fetch contracts for this supplier
+  const { data: contracts = [], isLoading: contractsLoading } = useContracts(
+    { supplier_id: supplierId },
+    { field: 'created_at', direction: 'desc' }
+  )
 
   const handleDelete = async () => {
     try {
@@ -67,35 +75,35 @@ export default function SupplierDetailsPage() {
     )
   }
 
-  const { contact_info, payment_terms } = supplier
+  // Note: Using direct fields instead of nested contact_info
 
   // Prepare stats data
   const stats = [
     {
-      id: 'total-bookings',
-      label: 'Total Bookings',
-      value: supplier.total_bookings || 0,
-      icon: <TrendingUp className="h-4 w-4" />,
-      description: 'All time bookings'
-    },
-    {
-      id: 'commission-rate',
-      label: 'Commission Rate',
-      value: supplier.commission_rate ? `${supplier.commission_rate}%` : '0%',
+      id: 'default-currency',
+      label: 'Default Currency',
+      value: supplier.default_currency || 'Not set',
       icon: <DollarSign className="h-4 w-4" />,
-      description: 'Current rate'
+      description: 'Preferred currency'
     },
     {
-      id: 'rating',
-      label: 'Rating',
-      value: supplier.rating ? `${supplier.rating}/5` : 'No rating',
-      icon: <Star className="h-4 w-4" />,
-      description: 'Supplier rating'
+      id: 'supplier-type',
+      label: 'Type',
+      value: supplier.supplier_type || 'Not specified',
+      icon: <Building className="h-4 w-4" />,
+      description: 'Supplier category'
+    },
+    {
+      id: 'location',
+      label: 'Location',
+      value: [supplier.city, supplier.country].filter(Boolean).join(', ') || 'Not set',
+      icon: <MapPin className="h-4 w-4" />,
+      description: 'Business location'
     },
     {
       id: 'created-date',
       label: 'Created',
-      value: formatDate(supplier.created_at),
+      value: supplier.created_at ? formatDate(supplier.created_at) : 'Not set',
       icon: <Calendar className="h-4 w-4" />,
       description: 'Member since'
     }
@@ -152,24 +160,10 @@ export default function SupplierDetailsPage() {
                   />
                 </div>
                 <div className="flex items-center gap-1">
-                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                  <SupplierInlineEdit
-                    supplier={supplier}
-                    field="rating"
-                    label="Rating"
-                    placeholder="Enter rating (1-5)"
-                    className="text-muted-foreground"
-                    emptyValue="No rating"
-                    size="sm"
-                    variant="minimal"
-                    validation={(value) => {
-                      const num = Number(value);
-                      if (value && (isNaN(num) || num < 1 || num > 5)) {
-                        return "Rating must be between 1 and 5";
-                      }
-                      return null;
-                    }}
-                  />
+                  <MapPin className="h-3 w-3" />
+                  <span className="text-xs text-muted-foreground">
+                    {[supplier.city, supplier.country].filter(Boolean).join(', ') || 'No location'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -214,7 +208,7 @@ export default function SupplierDetailsPage() {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Key Metrics</h3>
           <div className="text-sm text-muted-foreground">
-            Last updated: {formatDate(supplier.updated_at)}
+            Last updated: {supplier.updated_at ? formatDate(supplier.updated_at) : 'Not set'}
           </div>
         </div>
         <StatsGrid stats={stats} columns={4} />
@@ -257,202 +251,304 @@ export default function SupplierDetailsPage() {
             </div>
           </div>
 
-        <TabsContent value="overview" className="space-y-2">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* Contact Information */}
-            <InfoCard
-              title="Contact Information"
-              description="Primary contact details and business information"
-              icon={<Building className="h-4 w-4" />}
-              variant="default"
-              className="h-fit"
-            >
-              <div className="space-y-4">
-                <DetailRow
-                  label="Primary Contact"
-                  value={
-                    <SupplierContactEdit
-                      supplier={supplier}
-                      field="primary_contact"
-                      label="Primary Contact"
-                      placeholder="Enter primary contact name"
-                      className="text-sm font-medium"
-                      emptyValue="Not specified"
-                      size="sm"
-                      variant="underline"
-                    />
-                  }
-                  icon={<Building className="h-4 w-4" />}
-                />
-                
-                <DetailRow
-                  label="Email Address"
-                  value={
-                    <SupplierContactEdit
-                      supplier={supplier}
-                      field="email"
-                      label="Email"
-                      placeholder="Enter email address"
-                      className="text-sm font-medium"
-                      emptyValue="No email"
-                      size="sm"
-                      variant="underline"
-                      validation={(value) => {
-                        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                          return "Please enter a valid email address";
-                        }
-                        return null;
-                      }}
-                    />
-                  }
-                  icon={<Mail className="h-4 w-4" />}
-                />
-                
-                <DetailRow
-                  label="Phone Number"
-                  value={
-                    <SupplierContactEdit
-                      supplier={supplier}
-                      field="phone"
-                      label="Phone"
-                      placeholder="Enter phone number"
-                      className="text-sm font-medium"
-                      emptyValue="No phone"
-                      size="sm"
-                      variant="underline"
-                    />
-                  }
-                  icon={<Phone className="h-4 w-4" />}
-                />
-                
-                <DetailRow
-                  label="Website"
-                  value={
-                    <SupplierContactEdit
-                      supplier={supplier}
-                      field="website"
-                      label="Website"
-                      placeholder="Enter website URL"
-                      className="text-sm font-medium"
-                      emptyValue="No website"
-                      size="sm"
-                      variant="underline"
-                      validation={(value) => {
-                        if (value && !/^https?:\/\/.+/.test(value)) {
-                          return "Please enter a valid URL (include http:// or https://)";
-                        }
-                        return null;
-                      }}
-                    />
-                  }
-                  icon={<Globe className="h-4 w-4" />}
-                />
-                
-                <DetailRow
-                  label="Address"
-                  value={
-                    <SupplierContactEdit
-                      supplier={supplier}
-                      field="address"
-                      label="Address"
-                      placeholder="Enter full address"
-                      className="text-sm font-medium"
-                      multiline
-                      emptyValue="No address"
-                      size="sm"
-                      variant="underline"
-                    />
-                  }
-                  icon={<MapPin className="h-4 w-4" />}
-                />
-              </div>
-            </InfoCard>
+                 <TabsContent value="overview" className="space-y-2">
+           <div className="grid gap-4 lg:grid-cols-2">
+             {/* Contact Information */}
+             <InfoCard
+               title="Contact Information"
+               description="Primary contact details and business information"
+               icon={<Building className="h-4 w-4" />}
+               variant="default"
+               className="h-fit"
+             >
+               <div className="space-y-4">
+                 <DetailRow
+                   label="Primary Contact"
+                   value={
+                     <SupplierContactEdit
+                       supplier={supplier}
+                       field="primary_contact"
+                       label="Primary Contact"
+                       placeholder="Enter primary contact name"
+                       className="text-sm font-medium"
+                       emptyValue="Not specified"
+                       size="sm"
+                       variant="underline"
+                     />
+                   }
+                   icon={<Building className="h-4 w-4" />}
+                 />
+                 
+                 <DetailRow
+                   label="Email Address"
+                   value={
+                     <SupplierInlineEdit
+                       supplier={supplier}
+                       field="email"
+                       label="Email"
+                       placeholder="Enter email"
+                       className="text-sm font-medium"
+                       emptyValue="No email"
+                       size="sm"
+                       variant="underline"
+                       validation={(value) => {
+                         if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                           return "Please enter a valid email address";
+                         }
+                         return null;
+                       }}
+                     />
+                   }
+                   icon={<Mail className="h-4 w-4" />}
+                 />
+                 
+                 <DetailRow
+                   label="Phone Number"
+                   value={
+                     <SupplierInlineEdit
+                       supplier={supplier}
+                       field="phone"
+                       label="Phone"
+                       placeholder="Enter phone"
+                       className="text-sm font-medium"
+                       emptyValue="No phone"
+                       size="sm"
+                       variant="underline"
+                     />
+                   }
+                   icon={<Phone className="h-4 w-4" />}
+                 />
+                 
+                 <DetailRow
+                   label="Address"
+                   value={
+                     <SupplierInlineEdit
+                       supplier={supplier}
+                       field="address_line1"
+                       label="Address"
+                       placeholder="Enter address"
+                       className="text-sm font-medium"
+                       emptyValue="No address"
+                       size="sm"
+                       variant="underline"
+                     />
+                   }
+                   icon={<MapPin className="h-4 w-4" />}
+                 />
+                 
+                 <DetailRow
+                   label="City"
+                   value={
+                     <SupplierInlineEdit
+                       supplier={supplier}
+                       field="city"
+                       label="City"
+                       placeholder="Enter city"
+                       className="text-sm font-medium"
+                       emptyValue="Not set"
+                       size="sm"
+                       variant="underline"
+                     />
+                   }
+                   icon={<MapPin className="h-4 w-4" />}
+                 />
+                 
+                 <DetailRow
+                   label="Country"
+                   value={
+                     <SupplierInlineEdit
+                       supplier={supplier}
+                       field="country"
+                       label="Country (ISO Code)"
+                       placeholder="US, GB, etc."
+                       className="text-sm font-medium uppercase"
+                       emptyValue="Not set"
+                       size="sm"
+                       variant="underline"
+                       maxLength={2}
+                     />
+                   }
+                   icon={<Globe className="h-4 w-4" />}
+                 />
+                 
+                 <DetailRow
+                   label="Default Currency"
+                   value={
+                     <SupplierInlineEdit
+                       supplier={supplier}
+                       field="default_currency"
+                       label="Currency"
+                       placeholder="USD"
+                       className="text-sm font-medium"
+                       emptyValue="Not set"
+                       size="sm"
+                       variant="underline"
+                       maxLength={3}
+                     />
+                   }
+                   icon={<DollarSign className="h-4 w-4" />}
+                 />
+                 
+                 {supplier.notes && (
+                   <DetailRow
+                     label="Notes"
+                     value={supplier.notes}
+                     icon={<FileText className="h-4 w-4" />}
+                   />
+                 )}
+               </div>
+             </InfoCard>
 
-            {/* Payment Terms */}
-            <InfoCard
-              title="Payment Terms"
-              description="Payment methods and credit terms"
-              icon={<DollarSign className="h-4 w-4" />}
-              variant="default"
-              className="h-fit"
+             {/* Activity & Summary */}
+             <InfoCard
+               title="Activity & Summary"
+               description="Recent activity and key statistics"
+               icon={<TrendingUp className="h-4 w-4" />}
+               variant="default"
+               className="h-fit"
+             >
+               <div className="space-y-4">
+                 <DetailRow
+                   label="Active Contracts"
+                   value={
+                     <span className="flex items-center gap-2">
+                       <FileText className="h-4 w-4 text-muted-foreground" />
+                       <span className="text-sm font-medium">
+                         {contracts.length} contract{contracts.length !== 1 ? 's' : ''}
+                       </span>
+                                               <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const contractsTab = document.querySelector('button[value="contracts"]') as HTMLButtonElement
+                            if (contractsTab) {
+                              contractsTab.click()
+                            }
+                          }}
+                          className="h-6 text-xs"
+                        >
+                          View All
+                        </Button>
+                     </span>
+                   }
+                   icon={<FileText className="h-4 w-4" />}
+                 />
+
+                 <DetailRow
+                   label="Status"
+                   value={
+                     <StatusBadge
+                       status={supplier.is_active ? "active" : "inactive"}
+                       size="sm"
+                     />
+                   }
+                   icon={<Building className="h-4 w-4" />}
+                 />
+
+                 <DetailRow
+                   label="Created Date"
+                   value={supplier.created_at ? formatDate(supplier.created_at) : 'Not set'}
+                   icon={<Calendar className="h-4 w-4" />}
+                 />
+
+                 <DetailRow
+                   label="Last Updated"
+                   value={supplier.updated_at ? formatDate(supplier.updated_at) : 'Not set'}
+                   icon={<Calendar className="h-4 w-4" />}
+                 />
+
+                 <DetailRow
+                   label="Supplier Type"
+                   value={
+                     <SupplierInlineEdit
+                       supplier={supplier}
+                       field="supplier_type"
+                       label="Type"
+                       placeholder="hotel, transport, etc."
+                       className="text-sm font-medium"
+                       emptyValue="Not specified"
+                       size="sm"
+                       variant="underline"
+                     />
+                   }
+                   icon={<Building className="h-4 w-4" />}
+                 />
+
+                 <DetailRow
+                   label="Supplier Code"
+                   value={
+                     <SupplierInlineEdit
+                       supplier={supplier}
+                       field="code"
+                       label="Code"
+                       placeholder="Enter code"
+                       className="text-sm font-medium font-mono"
+                       emptyValue="Not set"
+                       size="sm"
+                       variant="underline"
+                     />
+                   }
+                   icon={<FileText className="h-4 w-4" />}
+                 />
+               </div>
+             </InfoCard>
+
+           </div>
+         </TabsContent>
+
+        <TabsContent value="contracts" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Contracts</h3>
+              <p className="text-sm text-muted-foreground">
+                {contracts.length} contract{contracts.length !== 1 ? 's' : ''} with this supplier
+              </p>
+            </div>
+            <Button 
+              onClick={() => router.push('/contracts/new')}
+              size="sm"
+              className="gap-2"
             >
-              <div className="space-y-4">
-                <DetailRow
-                  label="Payment Method"
-                  value={
-                    <SupplierPaymentEdit
-                      supplier={supplier}
-                      field="payment_method"
-                      label="Payment Method"
-                      placeholder="Enter payment method"
-                      className="text-sm font-medium"
-                      emptyValue="Not specified"
-                      size="sm"
-                      variant="card"
-                    />
-                  }
-                />
-                
-                <DetailRow
-                  label="Credit Days"
-                  value={
-                    <SupplierPaymentEdit
-                      supplier={supplier}
-                      field="credit_days"
-                      label="Credit Days"
-                      placeholder="Enter credit days"
-                      className="text-sm font-medium"
-                      emptyValue="0"
-                      size="sm"
-                      variant="card"
-                      validation={(value) => {
-                        if (value && isNaN(Number(value))) {
-                          return "Please enter a valid number";
-                        }
-                        return null;
-                      }}
-                    />
-                  }
-                />
-                
-                <DetailRow
-                  label="Additional Terms"
-                  value={
-                    <SupplierPaymentEdit
-                      supplier={supplier}
-                      field="terms"
-                      label="Additional Terms"
-                      placeholder="Enter additional payment terms"
-                      className="text-sm font-medium"
-                      multiline
-                      emptyValue="No additional terms"
-                      size="sm"
-                      variant="card"
-                    />
-                  }
-                />
-              </div>
-            </InfoCard>
+              <Plus className="h-4 w-4" />
+              Create Contract
+            </Button>
           </div>
-        </TabsContent>
 
-        <TabsContent value="contracts">
-          <InfoCard
-            title="Contracts"
-            description="All contracts and agreements with this supplier"
-            icon={<FileText className="h-4 w-4" />}
-          >
+          {contractsLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading contracts...</div>
+          ) : contracts.length === 0 ? (
             <EmptyState
               icon={<FileText className="h-8 w-8 text-muted-foreground" />}
               title="No contracts found"
               description="This supplier doesn't have any contracts yet. Create your first contract to get started."
               action={{
                 label: "Create Contract",
-                onClick: () => console.log("Create contract"),
-                icon: <FileText className="h-4 w-4" />
+                onClick: () => router.push('/contracts/new'),
+                icon: <Plus className="h-4 w-4" />
               }}
             />
-          </InfoCard>
+          ) : (
+            <ContractList
+              contracts={contracts}
+              isLoading={false}
+              onDuplicate={(id) => {
+                // TODO: Implement duplicate functionality
+                console.log('Duplicate contract:', id)
+              }}
+              onDelete={(id) => {
+                // TODO: Implement delete functionality
+                console.log('Delete contract:', id)
+              }}
+              onExport={(id) => {
+                // TODO: Implement export functionality
+                console.log('Export contract:', id)
+              }}
+              onShare={(id) => {
+                // TODO: Implement share functionality
+                console.log('Share contract:', id)
+              }}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="products">

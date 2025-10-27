@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Building, TrendingUp, Star, Users, Trash2, Copy, Download } from 'lucide-react'
+import { Plus, Building, TrendingUp, Users, Trash2, Copy, Download, Mail, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -53,20 +53,18 @@ export default function SuppliersPage() {
       description: 'Active suppliers'
     },
     {
-      id: 'total-bookings',
-      title: 'Total Bookings',
-      value: suppliers.reduce((sum, s) => sum + (s.total_bookings || 0), 0).toString(),
+      id: 'unique-currencies',
+      title: 'Currencies',
+      value: new Set(suppliers.map(s => s.default_currency).filter(Boolean)).size.toString(),
       icon: <Users className="h-4 w-4" />,
-      description: 'All time bookings'
+      description: 'Unique currencies'
     },
     {
-      id: 'average-rating',
-      title: 'Average Rating',
-      value: suppliers.length > 0 
-        ? (suppliers.reduce((sum, s) => sum + (s.rating || 0), 0) / suppliers.length).toFixed(1)
-        : '0.0',
-      icon: <Star className="h-4 w-4" />,
-      description: 'Supplier rating'
+      id: 'supplier-types',
+      title: 'Supplier Types',
+      value: new Set(suppliers.map(s => s.supplier_type).filter(Boolean)).size.toString(),
+      icon: <Building className="h-4 w-4" />,
+      description: 'Unique types'
     }
   ]
 
@@ -90,34 +88,44 @@ export default function SuppliersPage() {
       )
     },
     {
-      key: 'contact_info',
-      header: 'Contact',
+      key: 'email',
+      header: 'Email',
       render: (supplier: Supplier) => (
         <div className="text-sm">
-          <div>{supplier.contact_info?.email || 'No email'}</div>
-          <div className="text-muted-foreground">{supplier.contact_info?.phone || 'No phone'}</div>
+          {supplier.email ? (
+            <div className="flex items-center gap-1">
+              <Mail className="h-3 w-3 text-muted-foreground" />
+              <span>{supplier.email}</span>
+            </div>
+          ) : (
+            <span className="text-muted-foreground">No email</span>
+          )}
         </div>
       )
     },
     {
-      key: 'rating',
-      header: 'Rating',
+      key: 'phone',
+      header: 'Phone',
       render: (supplier: Supplier) => (
-        supplier.rating ? (
-          <div className="flex items-center gap-1">
-            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-            <span className="text-sm font-medium">{supplier.rating}</span>
-          </div>
-        ) : (
-          <span className="text-sm text-muted-foreground">No rating</span>
-        )
+        <div className="text-sm">
+          {supplier.phone || <span className="text-muted-foreground">No phone</span>}
+        </div>
       )
     },
     {
-      key: 'total_bookings',
-      header: 'Bookings',
+      key: 'location',
+      header: 'Location',
       render: (supplier: Supplier) => (
-        <div className="text-sm font-medium">{supplier.total_bookings || 0}</div>
+        <div className="text-sm">
+          {supplier.city || supplier.country ? (
+            <div className="flex items-center gap-1">
+              <MapPin className="h-3 w-3 text-muted-foreground" />
+              <span>{[supplier.city, supplier.country].filter(Boolean).join(', ') || 'No location'}</span>
+            </div>
+          ) : (
+            <span className="text-muted-foreground">No location</span>
+          )}
+        </div>
       )
     },
     {

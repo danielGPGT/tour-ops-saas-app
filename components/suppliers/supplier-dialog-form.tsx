@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,50 +22,54 @@ export function SupplierDialogForm({ supplier, trigger, afterSubmit }: SupplierD
   const updateSupplier = useUpdateSupplier()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [open, setOpen] = useState(false)
+  const [formData, setFormData] = useState<SupplierFormData | null>(null)
 
   const initialData: SupplierFormData = supplier ? {
     name: supplier.name || '',
     code: supplier.code || '',
     supplier_type: supplier.supplier_type || 'hotel',
-    contact_info: supplier.contact_info || {
-      email: '',
-      phone: '',
-      address: '',
-      city: '',
-      state: '',
-      country: '',
-      postal_code: ''
-    },
-    commission_rate: supplier.commission_rate || undefined,
-    rating: supplier.rating || undefined,
-    payment_terms: supplier.payment_terms || '',
+    email: supplier.email || '',
+    phone: supplier.phone || '',
+    address_line1: supplier.address_line1 || '',
+    city: supplier.city || '',
+    country: supplier.country || '',
+    default_currency: supplier.default_currency || 'USD',
+    notes: supplier.notes || '',
     is_active: supplier.is_active ?? true
   } : {
     name: '',
     code: '',
     supplier_type: 'hotel',
-    contact_info: {
-      email: '',
-      phone: '',
-      address: '',
-      city: '',
-      state: '',
-      country: '',
-      postal_code: ''
-    },
-    commission_rate: undefined,
-    rating: undefined,
-    payment_terms: '',
+    email: '',
+    phone: '',
+    address_line1: '',
+    city: '',
+    country: '',
+    default_currency: 'USD',
+    notes: '',
     is_active: true
   }
 
-  const handleSubmit = async (data: SupplierFormData) => {
+  const handleSubmitFromDialog = async () => {
+    if (!formData) {
+      console.error('No form data available')
+      return
+    }
+    
+    // Validate form data
+    const validation = supplierSchema.safeParse(formData)
+    if (!validation.success) {
+      console.error('Validation failed:', validation.error)
+      // TODO: Show validation errors to user
+      return
+    }
+    
     setIsSubmitting(true)
     try {
       if (supplier) {
-        await updateSupplier.mutateAsync({ id: supplier.id, data })
+        await updateSupplier.mutateAsync({ id: supplier.id, data: formData })
       } else {
-        await createSupplier.mutateAsync(data)
+        await createSupplier.mutateAsync(formData)
       }
       setOpen(false)
       afterSubmit?.()
@@ -90,7 +94,7 @@ export function SupplierDialogForm({ supplier, trigger, afterSubmit }: SupplierD
         onOpenChange={setOpen}
         title={supplier ? 'Edit Supplier' : 'Create New Supplier'}
         description={supplier ? 'Update supplier information' : 'Add a new supplier to your system'}
-        onSave={handleSubmit}
+        onSave={handleSubmitFromDialog}
         onCancel={handleCancel}
         isLoading={isSubmitting}
         showDelete={!!supplier}
@@ -98,8 +102,9 @@ export function SupplierDialogForm({ supplier, trigger, afterSubmit }: SupplierD
       >
         <SupplierFormContent
           initialData={initialData}
-          onSubmit={handleSubmit}
+          onSubmit={(data) => setFormData(data)}
           isLoading={isSubmitting}
+          onFormDataChange={setFormData}
         />
       </EditDialog>
     </>
@@ -110,36 +115,32 @@ export function SupplierDialogForm({ supplier, trigger, afterSubmit }: SupplierD
 function SupplierFormContent({ 
   initialData, 
   onSubmit, 
+  onFormDataChange,
   isLoading = false 
 }: {
   initialData: SupplierFormData
   onSubmit: (data: SupplierFormData) => void
+  onFormDataChange?: (data: SupplierFormData) => void
   isLoading?: boolean
 }) {
   const [formData, setFormData] = useState<SupplierFormData>(initialData)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const handleInputChange = (field: keyof SupplierFormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    const updated = { ...formData, [field]: value }
+    setFormData(updated)
+    onFormDataChange?.(updated)
+    
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }))
     }
   }
 
-  const handleContactInfoChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      contact_info: {
-        ...prev.contact_info,
-        [field]: value
-      }
-    }))
-    // Clear error when user starts typing
-    if (errors[`contact_info.${field}`]) {
-      setErrors(prev => ({ ...prev, [`contact_info.${field}`]: '' }))
-    }
-  }
+  // Sync formData changes to parent
+  React.useEffect(() => {
+    onFormDataChange?.(formData)
+  }, [formData, onFormDataChange])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -209,60 +210,45 @@ function SupplierFormContent({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="commission_rate">Commission Rate (%)</Label>
-            <Input
-              id="commission_rate"
-              type="number"
-              step="0.01"
-              min="0"
-              max="999.99"
-              value={formData.commission_rate || ''}
-              onChange={(e) => handleInputChange('commission_rate', parseFloat(e.target.value) || 0)}
-              placeholder="e.g., 10.5"
-              className={errors.commission_rate ? 'border-red-500' : ''}
-            />
-            {errors.commission_rate && (
-              <p className="text-sm text-red-600">{errors.commission_rate}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="rating">Rating (0-9.99)</Label>
-            <Input
-              id="rating"
-              type="number"
-              step="0.01"
-              min="0"
-              max="9.99"
-              value={formData.rating || ''}
-              onChange={(e) => handleInputChange('rating', parseFloat(e.target.value) || 0)}
-              placeholder="e.g., 4.5"
-              className={errors.rating ? 'border-red-500' : ''}
-            />
-            {errors.rating && (
-              <p className="text-sm text-red-600">{errors.rating}</p>
-            )}
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="default_currency">Default Currency</Label>
+          <Select
+            value={formData.default_currency || 'USD'}
+            onValueChange={(value) => handleInputChange('default_currency', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select currency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="USD">USD - US Dollar</SelectItem>
+              <SelectItem value="EUR">EUR - Euro</SelectItem>
+              <SelectItem value="GBP">GBP - British Pound</SelectItem>
+              <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
+              <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
+              <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
+              <SelectItem value="CHF">CHF - Swiss Franc</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Contact Information */}
       <div className="space-y-4">
+        <h3 className="text-sm font-medium">Contact Information</h3>
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               type="email"
-              value={formData.contact_info.email}
-              onChange={(e) => handleContactInfoChange('email', e.target.value)}
+              value={formData.email || ''}
+              onChange={(e) => handleInputChange('email', e.target.value)}
               placeholder="contact@supplier.com"
-              className={errors['contact_info.email'] ? 'border-red-500' : ''}
+              className={errors.email ? 'border-red-500' : ''}
             />
-            {errors['contact_info.email'] && (
-              <p className="text-sm text-red-600">{errors['contact_info.email']}</p>
+            {errors.email && (
+              <p className="text-sm text-red-600">{errors.email}</p>
             )}
           </div>
 
@@ -270,105 +256,77 @@ function SupplierFormContent({
             <Label htmlFor="phone">Phone</Label>
             <Input
               id="phone"
-              value={formData.contact_info.phone}
-              onChange={(e) => handleContactInfoChange('phone', e.target.value)}
+              value={formData.phone || ''}
+              onChange={(e) => handleInputChange('phone', e.target.value)}
               placeholder="+1 (555) 123-4567"
-              className={errors['contact_info.phone'] ? 'border-red-500' : ''}
+              className={errors.phone ? 'border-red-500' : ''}
             />
-            {errors['contact_info.phone'] && (
-              <p className="text-sm text-red-600">{errors['contact_info.phone']}</p>
+            {errors.phone && (
+              <p className="text-sm text-red-600">{errors.phone}</p>
             )}
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="address">Address</Label>
-          <Textarea
-            id="address"
-            value={formData.contact_info.address}
-            onChange={(e) => handleContactInfoChange('address', e.target.value)}
+          <Label htmlFor="address_line1">Address</Label>
+          <Input
+            id="address_line1"
+            value={formData.address_line1 || ''}
+            onChange={(e) => handleInputChange('address_line1', e.target.value)}
             placeholder="123 Main Street"
-            rows={2}
-            className={errors['contact_info.address'] ? 'border-red-500' : ''}
+            className={errors.address_line1 ? 'border-red-500' : ''}
           />
-          {errors['contact_info.address'] && (
-            <p className="text-sm text-red-600">{errors['contact_info.address']}</p>
+          {errors.address_line1 && (
+            <p className="text-sm text-red-600">{errors.address_line1}</p>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="city">City</Label>
             <Input
               id="city"
-              value={formData.contact_info.city}
-              onChange={(e) => handleContactInfoChange('city', e.target.value)}
+              value={formData.city || ''}
+              onChange={(e) => handleInputChange('city', e.target.value)}
               placeholder="New York"
-              className={errors['contact_info.city'] ? 'border-red-500' : ''}
+              className={errors.city ? 'border-red-500' : ''}
             />
-            {errors['contact_info.city'] && (
-              <p className="text-sm text-red-600">{errors['contact_info.city']}</p>
+            {errors.city && (
+              <p className="text-sm text-red-600">{errors.city}</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="state">State/Province</Label>
+            <Label htmlFor="country">Country (ISO Code)</Label>
             <Input
-              id="state"
-              value={formData.contact_info.state}
-              onChange={(e) => handleContactInfoChange('state', e.target.value)}
-              placeholder="NY"
-              className={errors['contact_info.state'] ? 'border-red-500' : ''}
+              id="country"
+              value={formData.country || ''}
+              onChange={(e) => handleInputChange('country', e.target.value.toUpperCase())}
+              placeholder="US, GB, FR, etc."
+              maxLength={2}
+              className={errors.country ? 'border-red-500' : ''}
             />
-            {errors['contact_info.state'] && (
-              <p className="text-sm text-red-600">{errors['contact_info.state']}</p>
+            {errors.country && (
+              <p className="text-sm text-red-600">{errors.country}</p>
             )}
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="postal_code">Postal Code</Label>
-            <Input
-              id="postal_code"
-              value={formData.contact_info.postal_code}
-              onChange={(e) => handleContactInfoChange('postal_code', e.target.value)}
-              placeholder="10001"
-              className={errors['contact_info.postal_code'] ? 'border-red-500' : ''}
-            />
-            {errors['contact_info.postal_code'] && (
-              <p className="text-sm text-red-600">{errors['contact_info.postal_code']}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="country">Country</Label>
-          <Input
-            id="country"
-            value={formData.contact_info.country}
-            onChange={(e) => handleContactInfoChange('country', e.target.value)}
-            placeholder="United States"
-            className={errors['contact_info.country'] ? 'border-red-500' : ''}
-          />
-          {errors['contact_info.country'] && (
-            <p className="text-sm text-red-600">{errors['contact_info.country']}</p>
-          )}
         </div>
       </div>
 
-      {/* Payment Terms */}
+      {/* Notes */}
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="payment_terms">Payment Terms</Label>
+          <Label htmlFor="notes">Notes</Label>
           <Textarea
-            id="payment_terms"
-            value={formData.payment_terms || ''}
-            onChange={(e) => handleInputChange('payment_terms', e.target.value)}
-            placeholder="e.g., Net 30 days, 2% discount for payment within 10 days"
+            id="notes"
+            value={formData.notes || ''}
+            onChange={(e) => handleInputChange('notes', e.target.value)}
+            placeholder="Additional notes about this supplier..."
             rows={3}
-            className={errors.payment_terms ? 'border-red-500' : ''}
+            className={errors.notes ? 'border-red-500' : ''}
           />
-          {errors.payment_terms && (
-            <p className="text-sm text-red-600">{errors.payment_terms}</p>
+          {errors.notes && (
+            <p className="text-sm text-red-600">{errors.notes}</p>
           )}
         </div>
       </div>

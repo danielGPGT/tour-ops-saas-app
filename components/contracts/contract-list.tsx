@@ -30,7 +30,7 @@ import { DataTable } from '@/components/common/DataTable'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { ActionButtons } from '@/components/common/ActionButtons'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
-import type { Contract } from '@/types/contract'
+import type { Contract } from '@/lib/types/contract'
 
 interface ContractListProps {
   contracts: Contract[]

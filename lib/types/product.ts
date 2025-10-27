@@ -1,52 +1,11 @@
-export interface Product {
-  id: string
-  organization_id: string
-  product_type_id: string
-  name: string
-  code: string
-  description?: string
-  location: Location
-  attributes: any  // Type-specific attributes
-  tags: string[]
-  media: Array<{
-    url: string
-    alt: string
-    is_primary: boolean
-  }>
-  is_active: boolean
-  created_at: string
-  updated_at: string
-  
-  // Relations
-  product_type?: ProductType
-}
+/**
+ * Product types matching the database schema
+ * Based on regenerated types from Supabase database
+ */
 
-export type ProductTypeCode = 'accommodation' | 'event' | 'activity' | 'transfer' | 'package' | 'tickets & passes'
-export type ProductCategory = 'accommodation' | 'activity' | 'transport'
-
-export interface ProductType {
-  id: string
-  type_name: ProductTypeCode
-  type_code: string
-  type_category: ProductCategory
-  attributes_schema: any
-  is_active: boolean
-}
-
-export interface ProductOption {
-  id: string
-  product_id: string
-  option_name: string
-  option_code: string
-  description?: string
-  standard_occupancy: number
-  max_occupancy: number
-  bed_configuration?: string
-  attributes: any  // Type-specific attributes
-  sort_order: number
-  is_active: boolean
-}
-
+/**
+ * Location structure (JSONB in database)
+ */
 export interface Location {
   city: string
   country: string
@@ -55,114 +14,159 @@ export interface Location {
   address?: string
 }
 
-// Type-specific attributes
-export interface HotelAttributes {
-  star_rating: number
-  check_in_time: string
-  check_out_time: string
-  amenities: string[]
-  property_type: string  // 'hotel', 'resort', 'apartment'
-  chain?: string
+/**
+ * Product type codes
+ */
+export type ProductTypeCode = 'accommodation' | 'event_ticket' | 'flight' | 'train' | 'transfer' | 'experience' | 'meal'
+
+/**
+ * Main Product interface matching database schema
+ */
+export interface Product {
+  // Core fields
+  id: string
+  organization_id: string
+  product_type_id: string
+  supplier_id: string | null  // Linked to supplier
+  
+  // Basic info
+  name: string
+  code: string
+  description: string | null
+  
+  // Location (JSONB)
+  location: Location | Record<string, any> | null
+  venue_name: string | null
+  
+  // Details (JSONB for flexible attributes)
+  attributes: Record<string, any> | null
+  
+  // Event linkage (optional)
+  event_id: string | null
+  
+  // Status
+  is_active: boolean | null
+  
+  // Audit
+  created_at: string | null
+  updated_at: string | null
+  created_by: string | null
 }
 
-export interface EventTicketAttributes {
-  event_name: string
-  event_date: string
-  venue_name: string
-  venue_capacity: number
-  event_type: string  // 'sports', 'concert', 'exhibition'
-  gates_open_time: string
-  event_start_time: string
+/**
+ * Product Type interface
+ */
+export interface ProductType {
+  id: string
+  type_code: string
+  type_name: string
+  description: string | null
+  icon: string | null
+  is_active: boolean | null
 }
 
-export interface TourAttributes {
-  duration_hours: number
-  duration_days: number
-  meeting_point: string
-  meeting_time: string
-  end_point: string
-  tour_type: string  // 'group', 'private', 'self_guided'
-  inclusions: string[]
-  exclusions: string[]
-  max_group_size: number
+/**
+ * Product Option interface matching database schema
+ */
+export interface ProductOption {
+  // Core fields
+  id: string
+  product_id: string
+  
+  // Option details
+  option_name: string
+  option_code: string
+  description: string | null
+  
+  // Pricing (SIMPLE!)
+  base_price: number | null
+  base_cost: number | null
+  currency: string | null
+  
+  // Details (JSONB for flexible attributes)
+  attributes: Record<string, any> | null
+  
+  // Status
+  is_active: boolean | null
+  
+  // Audit
+  created_at: string | null
+  updated_at: string | null
 }
 
-export interface TransferAttributes {
-  vehicle_type: string  // 'sedan', 'suv', 'van', 'bus'
-  max_passengers: number
-  max_luggage: number
-  from_location: string
-  to_location: string
-  distance_km: number
-  duration_minutes: number
-  transfer_type: string  // 'airport', 'hotel', 'point_to_point'
-}
-
-export type RateBasis = 'per_room_per_night' | 'per_ticket' | 'per_person' | 'per_booking'
-
+/**
+ * Selling Rate interface
+ */
 export interface SellingRate {
   id: string
   organization_id: string
   product_id: string
-  product_option_id: string
-  rate_name: string
-  rate_code: string
+  product_option_id: string | null
+  rate_name: string | null
+  rate_basis: string
   valid_from: string
   valid_to: string
-  rate_basis: RateBasis
-  currency: string
-  customer_type: 'b2c' | 'b2b_agent' | 'b2b_corporate'
-  dow_mask: string[]
-  min_nights?: number
-  max_nights?: number
-  min_pax?: number
-  max_pax?: number
-  priority: number
-  is_active: boolean
+  base_price: number
+  currency: string | null
+  markup_type: string | null
+  markup_amount: number | null
+  pricing_details: Record<string, any> | null
+  is_active: boolean | null
+  created_at: string | null
+  updated_at: string | null
 }
 
-// Form data types
+/**
+ * Form data for creating/updating a product
+ */
 export interface ProductFormData {
   name: string
   code: string
   product_type_id: string
-  description?: string
-  location: Location
-  attributes: any  // Type-specific attributes
-  tags: string[]
-  media: Array<{
-    url: string
-    alt: string
-    is_primary: boolean
-  }>
-  is_active: boolean
+  supplier_id?: string | null
+  description?: string | null
+  location?: Location | null
+  venue_name?: string | null
+  attributes?: Record<string, any> | null
+  event_id?: string | null
+  is_active?: boolean | null
 }
 
+/**
+ * Form data for creating/updating a product option
+ */
 export interface ProductOptionFormData {
   option_name: string
   option_code: string
-  description?: string
-  standard_occupancy: number
-  max_occupancy: number
-  bed_configuration?: string
-  attributes: any  // Type-specific attributes
-  sort_order: number
-  is_active: boolean
+  description?: string | null
+  base_price?: number | null
+  base_cost?: number | null
+  currency?: string | null
+  attributes?: Record<string, any> | null
+  is_active?: boolean | null
 }
 
-// Filter and sort types
+/**
+ * Filter and sort types
+ */
 export interface ProductFilters {
   search?: string
   product_type_id?: string
+  supplier_id?: string
+  event_id?: string
   is_active?: boolean
   location?: {
     city?: string
     country?: string
   }
-  tags?: string[]
 }
 
 export interface ProductSort {
   field: 'name' | 'created_at' | 'updated_at'
   direction: 'asc' | 'desc'
 }
+
+/**
+ * Rate basis types
+ */
+export type RateBasis = 'per_night' | 'per_person' | 'per_unit' | string

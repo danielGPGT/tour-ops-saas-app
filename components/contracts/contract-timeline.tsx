@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
-import type { Contract } from '@/types/contract'
+import type { Contract } from '@/lib/types/contract'
 
 interface ContractTimelineProps {
   contract: Contract

@@ -1,1455 +1,1019 @@
-# Cursor AI Prompt: Build Tour Operator Inventory & Booking Management System
+# Sports Travel Platform - Technical Overview
 
-## Context
+## 🎯 Project Overview
 
-I'm building a multi-tenant SaaS tour operator system with Supabase. Authentication is complete with app-sidebar and header already implemented. Now I need to build the core inventory and booking management features.
-
-This is a B2B system for tour operators to manage:
-- **Suppliers** (hotels, activity providers, etc.)
-- **Contracts** with suppliers
-- **Products** (hotels, tickets, tours, transfers)
-- **Inventory & Availability** (room blocks, ticket allotments)
-- **Bookings** (customer reservations)
-- **Pricing** (supplier costs + selling rates)
+This is an **enterprise-grade sports travel booking platform** designed for tour operators who sell packages to major sporting events (Formula 1, MotoGP, football, etc.). The platform handles the complete lifecycle from quote creation to booking fulfillment, with sophisticated inventory management and supplier contract handling.
 
 ---
 
-## Tech Stack
+## 🏗️ Architecture
 
-- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui
-- **Backend**: Supabase (PostgreSQL + RLS + Edge Functions)
-- **State Management**: React Query / TanStack Query for server state
+### Technology Stack
+- **Frontend**: Next.js 14 (App Router), React, TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **Database**: PostgreSQL 14+ with UUID primary keys
+- **State Management**: Zustand (recommended)
 - **Forms**: React Hook Form + Zod validation
-- **Tables**: TanStack Table
-- **Date Handling**: date-fns
-- **Charts**: Recharts (for dashboard)
+- **API**: RESTful endpoints (Next.js API routes)
+
+### Database: PostgreSQL
+
+The application uses a **single PostgreSQL database** with 28+ tables organized into logical domains. All tables use:
+- UUID primary keys (`gen_random_uuid()`)
+- Soft deletes where appropriate
+- Audit columns (`created_at`, `updated_at`, `created_by`)
+- Multi-tenant via `organization_id` foreign keys
 
 ---
 
-## Database Schema Overview
+## 📊 Core Data Model
 
-The database follows this hierarchy:
+### **1. Organizations & Users (Multi-tenant)**
 
 ```
-Organizations
-    ├── Suppliers
-    │   └── Contracts
-    │       ├── Contract Allocations (room blocks/ticket allotments)
-    │       │   ├── Allocation Inventory (by product option)
-    │       │   │   └── Availability (daily inventory)
-    │       │   └── Supplier Rates (costs)
-    │       └── Rate Taxes & Fees
-    ├── Products (hotels, tickets, tours, transfers)
-    │   ├── Product Options (room types, ticket categories)
-    │   └── Selling Rates (prices to customers)
-    ├── Customers
-    └── Bookings
-        ├── Booking Items (line items with inventory)
-        └── Booking Passengers
+organizations (tour operator companies)
+  ├─ users (staff members with roles)
+  ├─ customers (travelers)
+  └─ audit_log (change tracking)
 ```
 
----
+**Key Concept**: Everything is scoped to an `organization_id` for multi-tenancy.
 
-## Key Database Tables (Reference)
+### **2. Products & Events**
 
-### **suppliers**
+```
+events (Monaco GP 2025, Abu Dhabi GP, etc.)
+  └─ products (Hotels, Tickets, Transfers)
+       └─ product_options (Standard Room - 3 nights, Grandstand K, etc.)
+```
+
+**Product Structure**:
+- **Product**: Generic item (e.g., "Fairmont Monte Carlo")
+- **Product Option**: Specific variant (e.g., "Standard Room - 3 nights")
+- Products can be linked to events OR standalone (transfers, flights)
+
+**Example**:
 ```typescript
-{
-  id: UUID
-  organization_id: UUID
-  name: string
-  code: string
-  supplier_type: string  // 'hotel', 'dmc', 'activity', 'transport'
-  contact_info: JSONB
-  payment_terms: JSONB
-  is_active: boolean
-}
+Product: "Fairmont Monte Carlo"
+  ├─ Option: "Standard Room - 3 nights" (€3,600)
+  ├─ Option: "Deluxe Room - 3 nights" (€4,800)
+  └─ Option: "Suite - 3 nights" (€7,200)
+
+Product: "Airport Transfer"
+  └─ Option: "Nice Airport → Monaco" (€95)
 ```
 
-### **contracts**
+### **3. Suppliers & Contracts**
+
+```
+suppliers (hotels, venues, transport companies)
+  └─ contracts (negotiated deals)
+       ├─ contract_allocations (inventory blocks)
+       │    ├─ allocation_inventory (quantity tracking)
+       │    └─ allocation_releases (release dates with penalties)
+       └─ supplier_rates (pricing details)
+```
+
+**Contract Types**:
+- **Allotment**: Room/seat blocks with release dates (must release by X date or pay penalty)
+- **Batch**: Pre-purchased inventory (tickets bought upfront)
+- **Free Sell**: Unlimited availability (on-request)
+- **On Request**: Book first, source later (sell-first model!)
+
+**Key Concept**: Not all products need contracts. Hotels have contracts with allocations. Airport transfers are booked on-request without pre-bought inventory.
+
+### **4. Inventory Management**
+
+```
+contract_allocations (what you bought from supplier)
+  └─ allocation_inventory (quantity tracking)
+       ├─ total_quantity: 10 rooms
+       ├─ available_quantity: 7 rooms
+       └─ sold_quantity: 3 rooms
+```
+
+**Pooling** (Advanced):
+```
+allocation_pools (combine multiple allocations)
+  ├─ allocation_pool_members (which allocations in pool)
+  └─ usage_strategy (cost_optimization, expiry_first, etc.)
+```
+
+**Pooling Example**:
+```
+Pool: "Fairmont GP Weekend - All Rooms"
+├─ Allocation A: 5 rooms @ €2,400 (cheap)
+├─ Allocation B: 10 rooms @ €2,850 (regular)
+└─ Allocation C: 5 rooms @ €3,500 (expensive)
+
+Total: 20 rooms available
+Strategy: Use cheapest first automatically!
+```
+
+When customer books 7 rooms:
+- System auto-allocates: 5 from A, 2 from B
+- Creates 2 booking items (different costs)
+- Customer sees: "7 rooms booked ✓"
+
+### **5. Rates (Pricing)**
+
+```
+supplier_rates (what supplier charges YOU)
+  └─ pricing_details (JSONB)
+       ├─ occupancy_pricing (single, double, triple)
+       ├─ vehicle_rates (E-Class, S-Class, minivan)
+       ├─ age_pricing (adult, child, infant)
+       └─ extras (early check-in, extra bed, etc.)
+
+selling_rates (what you charge CUSTOMER)
+  └─ pricing_details (JSONB)
+       └─ Similar structure with markup
+```
+
+**Multi-occupancy Example**:
 ```typescript
-{
-  id: UUID
-  organization_id: UUID
-  supplier_id: UUID
-  contract_number: string
-  contract_name: string
-  valid_from: date
-  valid_to: date
-  currency: string
-  status: string  // 'active', 'expired', 'draft'
-}
-```
-
-### **products**
-```typescript
-{
-  id: UUID
-  organization_id: UUID
-  product_type_id: UUID  // Links to product_types (hotel, event_ticket, tour, transfer)
-  name: string
-  code: string
-  description: text
-  location: JSONB
-  attributes: JSONB
-  is_active: boolean
-}
-```
-
-### **product_options**
-```typescript
-{
-  id: UUID
-  product_id: UUID
-  option_name: string  // "Deluxe Room Double", "Main Grandstand", etc.
-  option_code: string
-  standard_occupancy: number
-  max_occupancy: number
-  bed_configuration: string
-  is_active: boolean
-}
-```
-
-### **contract_allocations**
-```typescript
-{
-  id: UUID
-  organization_id: UUID
-  contract_id: UUID
-  product_id: UUID
-  allocation_name: string
-  allocation_type: 'allotment' | 'free_sell' | 'on_request'
-  valid_from: date
-  valid_to: date
-  min_nights: number  // For hotels
-  max_nights: number
-  release_days: number  // Release inventory X days before
-  dow_arrival: string[]  // Day of week restrictions
-  allow_overbooking: boolean
-  is_active: boolean
-}
-```
-
-### **allocation_inventory**
-```typescript
-{
-  id: UUID
-  contract_allocation_id: UUID
-  product_option_id: UUID
-  total_quantity: number  // e.g., 100 rooms or 500 tickets
-  flexible_configuration: boolean
-  alternate_option_ids: UUID[]
-}
-```
-
-### **availability**
-```typescript
-{
-  id: UUID
-  allocation_inventory_id: UUID
-  availability_date: date
-  total_available: number
-  booked: number
-  provisional: number
-  held: number
-  available: number  // Auto-calculated
-  is_closed: boolean
-  is_released: boolean
-}
-```
-
-### **supplier_rates**
-```typescript
-{
-  id: UUID
-  organization_id: UUID
-  contract_id: UUID
-  product_id: UUID
-  product_option_id: UUID
-  rate_name: string
-  valid_from: date
-  valid_to: date
-  rate_basis: 'per_room_per_night' | 'per_ticket' | 'per_person' | 'per_booking'
-  currency: string
-}
-```
-
-### **rate_occupancy_costs**
-```typescript
-{
-  id: UUID
-  supplier_rate_id: UUID
-  occupancy: number  // 1, 2, 3 for single, double, triple
-  base_cost: number
-  adult_cost: number
-  child_cost: number
-  board_basis: string  // 'room_only', 'BB', 'HB', 'FB', 'AI'
-  currency: string
-}
-```
-
-### **bookings**
-```typescript
-{
-  id: UUID
-  organization_id: UUID
-  booking_reference: string  // Auto-generated unique ref
-  booking_status: 'provisional' | 'confirmed' | 'cancelled'
-  customer_id: UUID
-  booking_date: timestamp
-  travel_date_from: date
-  travel_date_to: date
-  total_cost: number  // Supplier costs
-  total_price: number  // Selling price
-  margin: number  // Price - Cost
-  currency: string
-  lead_passenger_name: string
-  lead_passenger_email: string
-  payment_status: string
-}
-```
-
-### **booking_items**
-```typescript
-{
-  id: UUID
-  booking_id: UUID
-  organization_id: UUID
-  product_id: UUID
-  product_option_id: UUID
-  service_date_from: date
-  service_date_to: date
-  nights: number
-  quantity: number
-  adults: number
-  children: number
-  supplier_id: UUID
-  contract_id: UUID
-  allocation_inventory_id: UUID
-  unit_cost: number
-  unit_price: number
-  total_cost: number
-  total_price: number
-  cost_currency: string
-  price_currency: string
-  base_currency: string
-  margin_base: number
-  item_status: 'provisional' | 'confirmed' | 'cancelled'
-}
-```
-
----
-
-## RPC Functions Available
-
-These PostgreSQL functions are already implemented:
-
-```typescript
-// Check availability with locking (prevents overbooking)
-supabase.rpc('check_availability_with_lock', {
-  p_allocation_inventory_id: UUID,
-  p_date_from: DATE,
-  p_date_to: DATE,
-  p_quantity: number
-})
-// Returns: boolean
-
-// Book inventory atomically
-supabase.rpc('book_inventory_atomic', {
-  p_allocation_inventory_id: UUID,
-  p_booking_id: UUID,
-  p_date_from: DATE,
-  p_date_to: DATE,
-  p_quantity: number,
-  p_status: 'provisional' | 'confirmed'
-})
-// Returns: boolean
-
-// Get exchange rate
-supabase.rpc('get_exchange_rate', {
-  p_from_currency: string,
-  p_to_currency: string,
-  p_date: timestamp,
-  p_direction: 'mid' | 'buy' | 'sell',
-  p_organization_id: UUID
-})
-// Returns: number
-
-// Get user profile
-supabase.rpc('get_user_profile')
-// Returns: { id, email, first_name, organization: {...} }
-```
-
----
-
-## Project Structure
-
-Build the following structure:
-
-```
-src/
-├── app/
-│   └── (dashboard)/
-│       ├── dashboard/
-│       │   └── page.tsx                    // ✅ Already done
-│       ├── suppliers/
-│       │   ├── page.tsx                    // List suppliers
-│       │   ├── [id]/
-│       │   │   ├── page.tsx                // View supplier details
-│       │   │   └── edit/page.tsx           // Edit supplier
-│       │   └── new/page.tsx                // Create supplier
-│       ├── contracts/
-│       │   ├── page.tsx                    // List contracts
-│       │   ├── [id]/
-│       │   │   ├── page.tsx                // View contract
-│       │   │   ├── edit/page.tsx
-│       │   │   ├── allocations/page.tsx    // Manage allocations
-│       │   │   └── rates/page.tsx          // Manage rates
-│       │   └── new/page.tsx
-│       ├── products/
-│       │   ├── page.tsx                    // List products
-│       │   ├── [id]/
-│       │   │   ├── page.tsx                // View product
-│       │   │   ├── edit/page.tsx
-│       │   │   ├── options/page.tsx        // Manage options
-│       │   │   └── rates/page.tsx          // Selling rates
-│       │   └── new/page.tsx
-│       ├── inventory/
-│       │   ├── page.tsx                    // Inventory overview
-│       │   ├── availability/page.tsx       // Calendar view
-│       │   └── [id]/page.tsx               // Detailed inventory
-│       ├── bookings/
-│       │   ├── page.tsx                    // List bookings
-│       │   ├── [id]/
-│       │   │   ├── page.tsx                // View booking
-│       │   │   └── edit/page.tsx
-│       │   └── new/page.tsx                // Create booking (wizard)
-│       ├── customers/
-│       │   ├── page.tsx
-│       │   ├── [id]/page.tsx
-│       │   └── new/page.tsx
-│       └── reports/
-│           ├── page.tsx                    // Reports hub
-│           ├── sales/page.tsx
-│           ├── inventory/page.tsx
-│           └── financial/page.tsx
-├── components/
-│   ├── suppliers/
-│   │   ├── supplier-list.tsx
-│   │   ├── supplier-form.tsx
-│   │   ├── supplier-card.tsx
-│   │   └── supplier-stats.tsx
-│   ├── contracts/
-│   │   ├── contract-list.tsx
-│   │   ├── contract-form.tsx
-│   │   ├── allocation-form.tsx
-│   │   ├── rate-form.tsx
-│   │   └── contract-timeline.tsx
-│   ├── products/
-│   │   ├── product-list.tsx
-│   │   ├── product-form.tsx
-│   │   ├── product-card.tsx
-│   │   ├── option-form.tsx
-│   │   └── product-type-selector.tsx
-│   ├── inventory/
-│   │   ├── availability-calendar.tsx
-│   │   ├── availability-grid.tsx
-│   │   ├── inventory-card.tsx
-│   │   └── bulk-update-modal.tsx
-│   ├── bookings/
-│   │   ├── booking-list.tsx
-│   │   ├── booking-form-wizard.tsx
-│   │   ├── booking-card.tsx
-│   │   ├── booking-timeline.tsx
-│   │   ├── product-selector.tsx
-│   │   ├── date-selector.tsx
-│   │   ├── passenger-form.tsx
-│   │   └── booking-summary.tsx
-│   ├── customers/
-│   │   ├── customer-list.tsx
-│   │   ├── customer-form.tsx
-│   │   └── customer-card.tsx
-│   ├── shared/
-│   │   ├── data-table.tsx               // Reusable table
-│   │   ├── status-badge.tsx
-│   │   ├── currency-display.tsx
-│   │   ├── date-range-picker.tsx
-│   │   ├── search-input.tsx
-│   │   ├── filters.tsx
-│   │   ├── pagination.tsx
-│   │   ├── empty-state.tsx
-│   │   └── loading-skeleton.tsx
-│   └── layout/
-│       ├── app-sidebar.tsx              // ✅ Already done
-│       └── header.tsx                   // ✅ Already done
-├── hooks/
-│   ├── useAuth.ts                       // ✅ Already done
-│   ├── useSuppliers.ts
-│   ├── useContracts.ts
-│   ├── useProducts.ts
-│   ├── useInventory.ts
-│   ├── useAvailability.ts
-│   ├── useBookings.ts
-│   ├── useCustomers.ts
-│   └── useOrganization.ts
-├── lib/
-│   ├── supabase/
-│   │   ├── client.ts                    // ✅ Already done
-│   │   └── server.ts                    // ✅ Already done
-│   ├── queries/
-│   │   ├── suppliers.ts
-│   │   ├── contracts.ts
-│   │   ├── products.ts
-│   │   ├── inventory.ts
-│   │   ├── bookings.ts
-│   │   └── customers.ts
-│   ├── validations/
-│   │   ├── supplier.schema.ts
-│   │   ├── contract.schema.ts
-│   │   ├── product.schema.ts
-│   │   ├── booking.schema.ts
-│   │   └── customer.schema.ts
-│   └── utils/
-│       ├── formatting.ts                // Currency, dates, etc.
-│       ├── calculations.ts              // Pricing, margin, etc.
-│       ├── reference-generator.ts       // Booking refs, codes
-│       └── date-helpers.ts
-├── types/
-│   ├── supplier.ts
-│   ├── contract.ts
-│   ├── product.ts
-│   ├── inventory.ts
-│   ├── booking.ts
-│   ├── customer.ts
-│   └── database.ts                      // Generated from Supabase
-└── constants/
-    ├── product-types.ts
-    ├── allocation-types.ts
-    ├── currencies.ts
-    └── countries.ts
-```
-
----
-
-## Implementation Phases
-
-Build the system in this order for best dependencies:
-
----
-
-## **PHASE 1: Foundation & Suppliers** (Build First)
-
-### Task 1.1: Setup TypeScript Types
-
-Create comprehensive types for all entities.
-
-**File: `src/types/database.ts`**
-- Generate from Supabase CLI: `supabase gen types typescript`
-- Or manually create interfaces matching the schema
-
-**File: `src/types/supplier.ts`**
-```typescript
-export interface Supplier {
-  id: string
-  organization_id: string
-  name: string
-  code: string
-  supplier_type: 'hotel' | 'dmc' | 'activity' | 'transport' | 'other'
-  contact_info: ContactInfo
-  payment_terms: PaymentTerms
-  commission_rate: number
-  rating: number
-  total_bookings: number
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface ContactInfo {
-  primary_contact: string
-  email: string
-  phone: string
-  address: Address
-  website?: string
-}
-
-export interface PaymentTerms {
-  payment_method: string
-  credit_days: number
-  terms: string
-}
-```
-
-Similar types for: `contract.ts`, `product.ts`, `inventory.ts`, `booking.ts`, `customer.ts`
-
----
-
-### Task 1.2: Create Utility Functions
-
-**File: `src/lib/utils/formatting.ts`**
-```typescript
-// Currency formatting
-export function formatCurrency(
-  amount: number,
-  currency: string = 'USD'
-): string
-
-// Date formatting
-export function formatDate(date: Date | string): string
-export function formatDateRange(from: Date, to: Date): string
-
-// Reference formatting
-export function formatBookingReference(ref: string): string
-```
-
-**File: `src/lib/utils/calculations.ts`**
-```typescript
-// Calculate margin
-export function calculateMargin(cost: number, price: number): number
-export function calculateMarginPercentage(cost: number, price: number): number
-
-// Calculate nights
-export function calculateNights(checkIn: Date, checkOut: Date): number
-
-// Price calculations
-export function calculateTotal(unitPrice: number, quantity: number, nights?: number): number
-```
-
-**File: `src/lib/utils/reference-generator.ts`**
-```typescript
-// Generate unique references
-export function generateBookingReference(prefix?: string): string
-export function generateSupplierCode(name: string): string
-export function generateContractNumber(supplierCode: string): string
-```
-
----
-
-### Task 1.3: Create Validation Schemas
-
-**File: `src/lib/validations/supplier.schema.ts`**
-```typescript
-import { z } from 'zod'
-
-export const supplierSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  code: z.string().min(2).max(10),
-  supplier_type: z.enum(['hotel', 'dmc', 'activity', 'transport', 'other']),
-  contact_info: z.object({
-    primary_contact: z.string().min(1),
-    email: z.string().email(),
-    phone: z.string().min(1),
-    address: z.object({
-      street: z.string().optional(),
-      city: z.string(),
-      country: z.string(),
-      postal_code: z.string().optional()
-    })
-  }),
-  payment_terms: z.object({
-    payment_method: z.string(),
-    credit_days: z.number().min(0).max(365),
-    terms: z.string().optional()
-  }),
-  commission_rate: z.number().min(0).max(100).optional(),
-  is_active: z.boolean().default(true)
-})
-
-export type SupplierFormData = z.infer<typeof supplierSchema>
-```
-
-Similar schemas for other entities.
-
----
-
-### Task 1.4: Create Supabase Query Functions
-
-**File: `src/lib/queries/suppliers.ts`**
-```typescript
-import { createClient } from '@/lib/supabase/client'
-import type { Supplier } from '@/types/supplier'
-
-export async function getSuppliers(organizationId: string) {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('suppliers')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .eq('is_active', true)
-    .order('name')
-  
-  if (error) throw error
-  return data as Supplier[]
-}
-
-export async function getSupplier(id: string) {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('suppliers')
-    .select('*')
-    .eq('id', id)
-    .single()
-  
-  if (error) throw error
-  return data as Supplier
-}
-
-export async function createSupplier(supplier: Partial<Supplier>) {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('suppliers')
-    .insert(supplier)
-    .select()
-    .single()
-  
-  if (error) throw error
-  return data as Supplier
-}
-
-export async function updateSupplier(id: string, updates: Partial<Supplier>) {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('suppliers')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single()
-  
-  if (error) throw error
-  return data as Supplier
-}
-
-export async function deleteSupplier(id: string) {
-  const supabase = createClient()
-  const { error } = await supabase
-    .from('suppliers')
-    .update({ is_active: false })
-    .eq('id', id)
-  
-  if (error) throw error
-}
-```
-
----
-
-### Task 1.5: Create React Query Hooks
-
-**File: `src/hooks/useSuppliers.ts`**
-```typescript
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from './useAuth'
-import * as supplierQueries from '@/lib/queries/suppliers'
-import type { Supplier } from '@/types/supplier'
-
-export function useSuppliers() {
-  const { profile } = useAuth()
-  
-  return useQuery({
-    queryKey: ['suppliers', profile?.organization.id],
-    queryFn: () => supplierQueries.getSuppliers(profile!.organization.id),
-    enabled: !!profile?.organization.id
-  })
-}
-
-export function useSupplier(id: string) {
-  return useQuery({
-    queryKey: ['suppliers', id],
-    queryFn: () => supplierQueries.getSupplier(id),
-    enabled: !!id
-  })
-}
-
-export function useCreateSupplier() {
-  const queryClient = useQueryClient()
-  const { profile } = useAuth()
-  
-  return useMutation({
-    mutationFn: (data: Partial<Supplier>) => 
-      supplierQueries.createSupplier({
-        ...data,
-        organization_id: profile!.organization.id
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
+supplier_rates: {
+  base_cost: 950,  // per night
+  pricing_details: {
+    occupancy_pricing: {
+      single: { adults: 1, cost_per_night: 950 },
+      double: { adults: 2, cost_per_night: 950 },  // Same rate
+      triple: { adults: 3, cost_per_night: 1000 }  // +€50 for extra bed
     }
-  })
-}
-
-export function useUpdateSupplier() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Supplier> }) =>
-      supplierQueries.updateSupplier(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
-    }
-  })
-}
-
-export function useDeleteSupplier() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: (id: string) => supplierQueries.deleteSupplier(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
-    }
-  })
-}
-```
-
----
-
-### Task 1.6: Create Reusable Data Table Component
-
-**File: `src/components/shared/data-table.tsx`**
-
-Build a reusable table component using TanStack Table with:
-- Sorting
-- Filtering
-- Pagination
-- Row selection
-- Column visibility
-- Search
-- Export (optional)
-
-Use shadcn/ui table components as base.
-
----
-
-### Task 1.7: Build Suppliers List Page
-
-**File: `src/app/(dashboard)/suppliers/page.tsx`**
-
-Features:
-- Display all suppliers in data table
-- Search by name, code, type
-- Filter by supplier type, status
-- Sort by name, total bookings, rating
-- Actions: View, Edit, Delete
-- "Add Supplier" button → routes to `/suppliers/new`
-- Stats cards showing:
-  - Total suppliers
-  - Active contracts
-  - Total bookings this month
-
-Design:
-- Page header with title and actions
-- Stats cards row
-- Filters and search bar
-- Data table
-- Pagination
-
----
-
-### Task 1.8: Build Supplier Form Component
-
-**File: `src/components/suppliers/supplier-form.tsx`**
-
-Multi-step form with React Hook Form + Zod:
-
-**Step 1: Basic Information**
-- Name (required)
-- Code (auto-generated from name, editable)
-- Supplier type (dropdown)
-- Rating (1-5 stars)
-
-**Step 2: Contact Information**
-- Primary contact name
-- Email
-- Phone
-- Address (street, city, country, postal code)
-- Website
-
-**Step 3: Payment Terms**
-- Payment method (dropdown)
-- Credit days (number)
-- Commission rate (%)
-- Terms (textarea)
-
-Form validation, error messages, submit handling.
-
----
-
-### Task 1.9: Build Create Supplier Page
-
-**File: `src/app/(dashboard)/suppliers/new/page.tsx`**
-
-- Page header with breadcrumbs
-- Back button
-- Supplier form component
-- On success: redirect to supplier details page
-- Toast notification on success/error
-
----
-
-### Task 1.10: Build Supplier Details Page
-
-**File: `src/app/(dashboard)/suppliers/[id]/page.tsx`**
-
-Display:
-- Supplier information card
-- Contact details card
-- Payment terms card
-- Statistics (total bookings, contracts, etc.)
-- Tabs:
-  - Overview
-  - Contracts (list all contracts with this supplier)
-  - Products (list all products from this supplier)
-  - Bookings (recent bookings)
-- Actions: Edit, Delete, Activate/Deactivate
-
----
-
-### Task 1.11: Build Edit Supplier Page
-
-**File: `src/app/(dashboard)/suppliers/[id]/edit/page.tsx`**
-
-- Same form as create
-- Pre-filled with existing data
-- Update functionality
-- Redirect to details page on success
-
----
-
-## **PHASE 2: Contracts** (Build Second)
-
-Repeat similar pattern for Contracts:
-
-### Task 2.1: Types & Validation
-- `types/contract.ts`
-- `validations/contract.schema.ts`
-
-### Task 2.2: Queries & Hooks
-- `queries/contracts.ts`
-- `hooks/useContracts.ts`
-
-### Task 2.3: Components
-- `components/contracts/contract-list.tsx`
-- `components/contracts/contract-form.tsx`
-- `components/contracts/contract-card.tsx`
-- `components/contracts/contract-timeline.tsx` (visual timeline of valid dates)
-
-### Task 2.4: Pages
-- `/contracts` - List page
-- `/contracts/new` - Create page
-- `/contracts/[id]` - Details page
-- `/contracts/[id]/edit` - Edit page
-
-**Key Features for Contracts:**
-- Link to supplier (dropdown or autocomplete)
-- Contract number (auto-generated)
-- Valid from/to dates (date range picker)
-- Currency selector
-- Status badge (active, expired, draft)
-- Upload contract files (PDF)
-- Timeline visualization showing validity period
-- Display all allocations for this contract
-
----
-
-## **PHASE 3: Products** (Build Third)
-
-### Task 3.1-3.4: Same pattern as above
-
-**Key Features for Products:**
-- Product type selector (hotel, event ticket, tour, transfer)
-- Different forms based on product type:
-  - Hotel: star rating, check-in/out times, amenities
-  - Event: event date, venue, gates open time
-  - Tour: duration, meeting point, inclusions
-  - Transfer: vehicle type, route, luggage allowance
-- Location picker (Google Maps or manual)
-- Media upload (images, videos)
-- Tags (for filtering)
-- SEO fields (meta title, description, slug)
-
-### Task 3.5: Product Options Management
-
-**File: `/products/[id]/options/page.tsx`**
-
-- Table showing all options for a product
-- Add/Edit/Delete options
-- For hotels: room types with bed config, occupancy
-- For tickets: categories (VIP, Standard, etc.)
-- For tours: group sizes, private vs shared
-- Inline editing for quick updates
-
----
-
-## **PHASE 4: Contract Allocations & Inventory** (Build Fourth)
-
-This is where it gets complex!
-
-### Task 4.1: Allocation Management
-
-**File: `/contracts/[id]/allocations/page.tsx`**
-
-Features:
-- List all allocations for this contract
-- Add new allocation
-- Allocation form fields:
-  - Allocation name
-  - Product (dropdown - filtered by supplier)
-  - Allocation type (allotment, free_sell, on_request)
-  - Valid dates (date range)
-  - Min/max nights (for hotels)
-  - Release days
-  - DOW restrictions (checkboxes for days)
-  - Overbooking settings
-
-### Task 4.2: Inventory Setup
-
-**File: `/contracts/[id]/allocations/[allocationId]/inventory`**
-
-For each allocation, set up inventory per product option:
-- Table showing product options
-- Quantity input for each option
-- Flexible configuration toggle
-- Alternate options selector
-- Generate availability records button
-- Visual indicator of availability generated
-
-### Task 4.3: Availability Management
-
-**File: `/inventory/availability/page.tsx`**
-
-**Calendar View:**
-- Month/week view selector
-- Product filter
-- Option filter
-- Date range filter
-- Grid showing:
-  - Date
-  - Product option
-  - Total available
-  - Booked
-  - Provisional
-  - Available (color-coded)
-- Click on cell to edit
-- Bulk update modal
-- Close/open specific dates
-
-**Features:**
-- Color coding:
-  - Green: >50% available
-  - Yellow: 10-50% available
-  - Orange: 1-10% available
-  - Red: Sold out
-  - Gray: Closed
-- Quick actions:
-  - Bulk update quantity
-  - Close dates
-  - Release inventory early
-- Export to CSV
-
----
-
-## **PHASE 5: Supplier Rates (Costs)** (Build Fifth)
-
-### Task 5.1: Rates Management
-
-**File: `/contracts/[id]/rates/page.tsx`**
-
-Features:
-- List all rates for this contract
-- Grouped by product
-- Add new rate form:
-  - Product selector
-  - Product option selector
-  - Rate name
-  - Valid dates
-  - Rate basis (per_room_per_night, per_ticket, etc.)
-  - DOW mask (rate applies only on certain days)
-  - Priority (for rate selection)
-
-### Task 5.2: Occupancy Costs
-
-**Sub-component or modal:**
-- For each rate, define costs by occupancy:
-  - Single (1 person)
-  - Double (2 persons)
-  - Triple (3 persons)
-  - Quad (4 persons)
-- Extra adult/child costs
-- Board basis options (Room Only, BB, HB, FB, AI)
-- Board supplements
-- Child age ranges
-
----
-
-## **PHASE 6: Selling Rates (Prices)** (Build Sixth)
-
-### Task 6.1: Selling Rates Management
-
-**File: `/products/[id]/rates/page.tsx`**
-
-Similar to supplier rates but for selling prices:
-- List all selling rates for this product
-- Add/edit selling rate
-- Markup type (fixed amount or percentage)
-- Customer type (B2C, B2B agent, B2B corporate)
-- Min/max pax restrictions
-- DOW restrictions
-- Priority
-
-### Task 6.2: Occupancy Prices
-
-- Same pattern as supplier rates
-- Show margin calculation (selling price - supplier cost)
-
----
-
-## **PHASE 7: Customers** (Build Seventh)
-
-Simpler CRUD:
-
-### Task 7.1-7.4: Standard pattern
-- Types, validation, queries, hooks
-- List page
-- Create/edit forms
-- Details page
-
-**Key Fields:**
-- Customer type (B2C, B2B)
-- Personal info (name, email, phone)
-- Company info (for B2B)
-- Address
-- Preferences
-- Marketing consent
-- Tags
-- Notes
-
----
-
-## **PHASE 8: Bookings** (Build Last - Most Complex)
-
-### Task 8.1: Booking List Page
-
-**File: `/bookings/page.tsx`**
-
-Features:
-- Data table with all bookings
-- Filters:
-  - Status (provisional, confirmed, cancelled)
-  - Date range
-  - Customer
-  - Product
-  - Payment status
-- Search by booking reference, customer name
-- Stats cards:
-  - Total bookings today
-  - Revenue today
-  - Pending confirmations
-  - Cancellations
-- Quick actions:
-  - View
-  - Edit
-  - Confirm
-  - Cancel
-  - Send confirmation email
-
----
-
-### Task 8.2: Create Booking Wizard
-
-**File: `/bookings/new/page.tsx`**
-
-Multi-step wizard:
-
-**Step 1: Customer Selection**
-- Search existing customer or create new
-- Display customer details
-
-**Step 2: Product Selection**
-- Search products
-- Filter by type, location
-- Display product cards with:
-  - Image
-  - Name
-  - Description
-  - Base price
-  - "Select" button
-
-**Step 3: Date & Quantity**
-- Date range picker (check-in/out for hotels, event date for tickets)
-- Quantity selector
-- Adults/children/infants counters
-- Check availability button
-- Display available options with prices
-
-**Step 4: Option Selection**
-- Show all available product options
-- Display:
-  - Option name
-  - Availability
-  - Price per unit
-  - Total price
-- Select option
-- Add to booking
-- Can add multiple products (hotel + tickets + tour)
-
-**Step 5: Passenger Details**
-- For each adult/child/infant, capture:
-  - Title, first name, last name
-  - Date of birth
-  - Passport details (if required)
-  - Dietary requirements
-  - Special requests
-- Lead passenger marked
-- Quick fill option (copy from customer)
-
-**Step 6: Review & Confirm**
-- Summary of all booking items
-- Display:
-  - Each product with dates, quantity, price
-  - Supplier costs (hidden from customer view)
-  - Selling prices
-  - Margin
-  - Total cost, total price, total margin
-- Currency display (with exchange rate if multi-currency)
-- Payment status selector
-- Internal notes
-- Customer notes
-- "Create Provisional Booking" button
-- "Create Confirmed Booking" button
-
-**Step 7: Success**
-- Booking reference displayed
-- Download/email confirmation button
-- View booking button
-- Create another booking button
-
-**Key Logic:**
-- On "Check Availability":
-  - Call `check_availability_with_lock` RPC
-  - Display available options with real-time inventory
-  - If sold out, show "Sold Out" badge
-- On "Add to Booking":
-  - Create temporary hold (if implementing cart)
-  - Update running totals
-- On "Create Booking":
-  - Create booking record
-  - Create all booking items
-  - Call `book_inventory_atomic` for each item
-  - Update availability
-  - Generate booking reference
-  - Send confirmation email (optional)
-
----
-
-### Task 8.3: Booking Details Page
-
-**File: `/bookings/[id]/page.tsx`**
-
-Display:
-- Booking header:
-  - Booking reference (large, prominent)
-  - Status badge
-  - Created date, travel dates
-  - Customer name
-- Customer card
-- Booking items table:
-  - Product, dates, quantity, price
-  - Supplier info
-  - Contract reference
-  - Status
-- Passengers list
-- Payment information
-- Timeline of changes (audit log)
-- Actions:
-  - Edit
-  - Confirm
-  - Cancel
-  - Add item
-  - Remove item
-  - Send email
-  - Download PDF
-  - Generate invoice
-
----
-
-### Task 8.4: Edit Booking Page
-
-**File: `/bookings/[id]/edit/page.tsx`**
-
-- Similar to create wizard but pre-filled
-- Allow adding/removing items
-- Allow changing dates (if availability permits)
-- Allow changing quantities
-- Recalculate pricing
-- Show change summary before saving
-
----
-
-## **PHASE 9: Dashboard & Reports** (Build Last)
-
-### Task 9.1: Enhanced Dashboard
-
-**File: `/dashboard/page.tsx`**
-
-Widgets:
-- Today's bookings count
-- Today's revenue
-- Pending confirmations count
-- Availability alerts (low inventory)
-- Recent bookings list
-- Revenue chart (last 30 days)
-- Top products chart
-- Top suppliers list
-- Upcoming releases (inventory about to be released)
-
-### Task 9.2: Reports
-
-**Sales Report:**
-- Revenue by date range
-- Revenue by product
-- Revenue by supplier
-- Conversion rates
-- Average booking value
-
-**Inventory Report:**
-- Utilization rates
-- Released inventory
-- Expiring contracts
-- Low availability alerts
-
-**Financial Report:**
-- Total costs
-- Total revenue
-- Gross margin
-- By supplier, product, date range
-- Currency breakdown
-
----
-
-## Design Guidelines
-
-### Color Scheme
-- Primary: Blue (#0066cc)
-- Success: Green (#10b981)
-- Warning: Amber (#f59e0b)
-- Danger: Red (#ef4444)
-- Neutral: Slate (#64748b)
-
-### Status Colors
-- Provisional: Yellow/Amber
-- Confirmed: Green
-- Cancelled: Red
-- Expired: Gray
-- Active: Blue
-
-### Components
-Use shadcn/ui components consistently:
-- Button, Input, Select, Checkbox, Radio
-- Card, Badge, Avatar
-- Dialog, Sheet, Popover
-- Table, Tabs, Accordion
-- Calendar, DatePicker
-- Form, Label, Error messages
-- Toast/Sonner for notifications
-- Loading states: Skeleton
-
-### Responsive Design
-- Mobile: Stack elements vertically
-- Tablet: 2-column layouts
-- Desktop: Full layouts with sidebars
-- Tables: Scroll horizontally on mobile
-
-### Accessibility
-- Semantic HTML
-- ARIA labels
-- Keyboard navigation
-- Focus states
-- Error announcements
-
----
-
-## Key Patterns to Follow
-
-### 1. Consistent Page Structure
-```tsx
-export default function PageName() {
-  return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Page Title</h1>
-          <p className="text-muted-foreground">Description</p>
-        </div>
-        <Button>Primary Action</Button>
-      </div>
-
-      {/* Stats Cards (optional) */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard />
-      </div>
-
-      {/* Filters & Search */}
-      <div className="flex items-center gap-4">
-        <SearchInput />
-        <Filters />
-      </div>
-
-      {/* Main Content */}
-      <Card>
-        <DataTable />
-      </Card>
-    </div>
-  )
-}
-```
-
-### 2. Form Handling Pattern
-```tsx
-const form = useForm<FormData>({
-  resolver: zodResolver(schema),
-  defaultValues: {}
-})
-
-const mutation = useCreateEntity()
-
-async function onSubmit(data: FormData) {
-  try {
-    await mutation.mutateAsync(data)
-    toast.success('Created successfully')
-    router.push('/list-page')
-  } catch (error) {
-    toast.error(error.message)
   }
 }
 
-return (
-  <Form {...form}>
-    <form onSubmit={form.handleSubmit(onSubmit)}>
-      {/* Form fields */}
-      <Button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? 'Saving...' : 'Save'}
-      </Button>
-    </form>
-  </Form>
-)
+// At booking time:
+Customer books for 3 adults
+→ System uses "triple" pricing
+→ Cost: €1,000/night × 3 nights = €3,000
 ```
 
-### 3. Data Fetching Pattern
+### **6. Bookings (The Core)**
+
+```
+bookings (customer reservations)
+  ├─ booking_items (individual products/services)
+  │    └─ Links to allocation_inventory (tracks which allocation used)
+  ├─ booking_passengers (guest details)
+  ├─ transport_segments (flights, transfers)
+  └─ payments (deposit, balance, refunds)
+```
+
+**Booking Status Flow**:
+```
+quote → provisional → confirmed → completed
+         ↓
+      cancelled / no_show
+```
+
+**Quote to Booking Workflow**:
+1. Create booking with `booking_status = 'quote'`
+2. Customer accepts → Change to `provisional` (awaiting deposit)
+3. Deposit paid → Change to `confirmed` (inventory decremented)
+4. Service delivered → `completed`
+
+**Key Fields**:
+```typescript
+bookings: {
+  booking_status: 'quote' | 'provisional' | 'confirmed' | 'cancelled',
+  payment_status: 'pending' | 'partial' | 'paid' | 'refunded',
+  
+  // Pricing
+  total_cost: 5000,         // What it costs you (EUR)
+  base_currency: 'EUR',     // Your cost currency
+  total_price: 6500,        // What customer pays (GBP)
+  display_currency: 'GBP',  // Customer's currency
+  
+  // FX tracking
+  fx_rate: 1.17,            // GBP/EUR rate at booking time
+  rate_locked: true,        // Price locked even if FX changes
+  
+  // Quote tracking
+  quote_reference: 'QUOTE-123',
+  quote_expires_at: '2025-05-15',
+  quote_version: 1,
+  converted_from_quote_id: null  // If converted from quote
+}
+```
+
+### **7. Booking Items (Individual Line Items)**
+
+```typescript
+booking_items: {
+  id: uuid,
+  booking_id: uuid,
+  
+  // Product
+  product_id: uuid,
+  product_option_id: uuid,
+  
+  // Inventory tracking
+  allocation_inventory_id: uuid,      // Which allocation used
+  allocation_pool_id: uuid,           // If from pool
+  contract_allocation_id: uuid,       // Which contract
+  supplier_rate_id: uuid,             // Which rate used
+  
+  // Quantity & Dates
+  quantity: 2,                        // 2 rooms
+  adults: 4,                          // 2 adults per room
+  children: 0,
+  service_date_from: '2025-05-22',
+  service_date_to: '2025-05-25',
+  
+  // Pricing (per item)
+  unit_cost: 2850.00,                 // Cost per room (EUR)
+  cost_currency: 'EUR',
+  total_cost: 5700.00,                // 2 × €2,850
+  
+  unit_price: 3600.00,                // Price per room (GBP)
+  price_currency: 'GBP',
+  total_price: 7200.00,               // 2 × £3,600
+  
+  // Status
+  item_status: 'confirmed',           // or 'on_request' for sell-first
+  
+  // Customer preferences
+  special_requests: 'Twin beds preferred',
+  attributes: {
+    bed_preference: 'twin',
+    floor_preference: 'high'
+  }
+}
+```
+
+**Item Status**:
+- `provisional`: In quote, not confirmed
+- `on_request`: Sold but not sourced yet (sell-first!)
+- `confirmed`: Fully sourced and confirmed
+- `cancelled`: Item cancelled
+
+**Sell-First Model**:
+```
+Customer books airport transfer:
+→ Create booking_item with item_status = 'on_request'
+→ No allocation needed (no pre-bought inventory)
+→ Operations team sources it later
+
+View: items_needing_sourcing
+Shows all items with status = 'on_request'
+Sorted by urgency (service_date_from ASC)
+```
+
+### **8. Multi-Currency & FX**
+
+```
+exchange_rates (cached FX rates)
+  ├─ from_currency: 'EUR'
+  ├─ to_currency: 'GBP'
+  ├─ rate: 1.17
+  └─ date: '2025-05-01'
+```
+
+**How it works**:
+1. Costs stored in supplier's currency (EUR)
+2. Prices stored in customer's currency (GBP)
+3. FX rate locked at booking time
+4. Reporting converts everything to `base_currency` for consistency
+
+```typescript
+// Example booking
+Fairmont room cost: €2,850
+FX rate on May 1: 1 EUR = 1.17 GBP
+Customer pays: £3,600 (includes margin)
+
+Stored as:
+{
+  unit_cost: 2850.00,
+  cost_currency: 'EUR',
+  unit_price: 3600.00,
+  price_currency: 'GBP',
+  fx_rate: 1.17,
+  rate_locked: true
+}
+```
+
+---
+
+## 🎯 Key Business Concepts
+
+### **1. Allocation vs Inventory vs Pool**
+
+```
+Allocation = What you bought from supplier
+  "We have 10 rooms for Monaco GP weekend"
+
+Inventory = What you track for selling
+  total: 10, available: 7, sold: 3
+
+Pool = Combine multiple allocations
+  Allocation A (5 @ €2,400) + Allocation B (10 @ €2,850)
+  = Pool of 15 rooms (auto-use cheapest first)
+```
+
+### **2. Contracts vs Rates**
+
+**Contract** = The legal agreement
+- Contract number, dates, terms
+- Allocations (inventory blocks)
+- Release dates and penalties
+
+**Supplier Rate** = The pricing details
+- How much supplier charges
+- Multi-occupancy, seasonal pricing
+- Extras and add-ons
+- Can exist without contract (ad-hoc pricing)
+
+**When to use which**:
+- Hotels with allocations → Full contract + rates
+- Pre-bought tickets → Contract with batch inventory
+- Airport transfers → Just rates (no contract/allocation)
+- On-request services → Just rates
+
+### **3. Quote → Booking Conversion**
+
+```
+Step 1: Create Quote
+  booking_status = 'quote'
+  quote_expires_at = +7 days
+  No inventory decremented
+
+Step 2: Customer Accepts
+  booking_status = 'provisional'
+  Payment link sent
+
+Step 3: Deposit Paid
+  booking_status = 'confirmed'
+  Inventory decremented
+  Allocation confirmed with supplier
+
+Step 4: Service Delivered
+  booking_status = 'completed'
+```
+
+**Price Locking**:
+```typescript
+booking: {
+  rate_locked: true,  // Price won't change
+  locked_at: '2025-05-01',
+  fx_rate: 1.17  // Locked FX rate
+}
+
+// Even if FX changes to 1.20 tomorrow,
+// customer still pays the locked price
+```
+
+### **4. Items Needing Sourcing (Sell-First)**
+
+```sql
+-- View: items_needing_sourcing
+SELECT 
+  booking_reference,
+  product_name,
+  quantity,
+  service_date_from,
+  days_until_service,
+  priority
+FROM booking_items
+WHERE item_status = 'on_request'
+  AND booking_status NOT IN ('cancelled', 'quote')
+ORDER BY service_date_from ASC;
+
+-- Priority:
+-- urgent: < 7 days
+-- high: 7-30 days
+-- normal: > 30 days
+```
+
+**Operations Dashboard**:
+- Shows all items that need sourcing
+- Sorted by urgency
+- Operations team books with suppliers
+- Updates `item_status` to 'confirmed'
+
+---
+
+## 📁 Recommended Project Structure
+
+```
+/app
+  /api
+    /bookings
+    /contracts
+    /rates
+    /inventory
+    /products
+  /(dashboard)
+    /bookings
+    /contracts
+    /inventory
+    /products
+    /customers
+    /reports
+
+/components
+  /ui (shadcn components)
+  /bookings
+  /contracts
+  /inventory
+  /products
+  /forms
+
+/lib
+  /db (database utilities)
+  /api (API helpers)
+  /utils (formatters, validators)
+  /types (TypeScript types)
+
+/types
+  database.types.ts (generated from schema)
+  api.types.ts
+  booking.types.ts
+  contract.types.ts
+```
+
+---
+
+## 🎨 UI/UX Guidelines
+
+### Design System
+- **Component Library**: shadcn/ui
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **Fonts**: Inter (body), Geist (headings)
+- **Spacing**: 4px grid system
+- **Colors**: 
+  - Primary: Blue (bookings, actions)
+  - Success: Green (confirmed, active)
+  - Warning: Yellow (provisional, expiring)
+  - Danger: Red (cancelled, urgent)
+  - Neutral: Gray (inactive, disabled)
+
+### Key UI Patterns
+
+**1. Inline Editing**
 ```tsx
-const { data, isLoading, error } = useEntities()
-
-if (isLoading) return <LoadingSkeleton />
-if (error) return <ErrorState />
-if (!data?.length) return <EmptyState />
-
-return <DataTable data={data} />
+<EditableField
+  label="Rate Name"
+  value={rate.rate_name}
+  onSave={updateRate}
+  required
+/>
 ```
+- Click to edit
+- Enter to save
+- Escape to cancel
+- Auto-save on blur
 
-### 4. Real-time Updates
+**2. Expandable Cards**
 ```tsx
-useEffect(() => {
-  const channel = supabase
-    .channel('table-changes')
-    .on('postgres_changes', 
-      { event: '*', schema: 'public', table: 'bookings' },
-      () => queryClient.invalidateQueries(['bookings'])
-    )
-    .subscribe()
+<Card>
+  <CardHeader onClick={toggle}>
+    <Title>Allocation Name</Title>
+    <QuickStats>...</QuickStats>
+  </CardHeader>
+  <CardBody expanded={isExpanded}>
+    {/* Full details */}
+  </CardBody>
+</Card>
+```
 
-  return () => supabase.removeChannel(channel)
-}, [])
+**3. Accordions for Complex Forms**
+```tsx
+<Accordion>
+  <AccordionItem value="occupancy">
+    <AccordionTrigger>Multi-Occupancy Pricing</AccordionTrigger>
+    <AccordionContent>
+      {/* Pricing tables */}
+    </AccordionContent>
+  </AccordionItem>
+</Accordion>
+```
+
+**4. Status Badges**
+```tsx
+<Badge variant={getStatusVariant(status)}>
+  {status}
+</Badge>
+
+// Variants: default, success, warning, destructive, outline
+```
+
+**5. Data Tables**
+```tsx
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead sortable>Product</TableHead>
+      <TableHead sortable>Cost</TableHead>
+      <TableHead>Actions</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {/* Rows with inline actions */}
+  </TableBody>
+</Table>
 ```
 
 ---
 
-## Error Handling
+## 🔧 Key Functions & Utilities
 
-1. **Form validation errors**: Display inline below fields
-2. **API errors**: Show toast notification
-3. **Network errors**: Show retry button
-4. **Permission errors**: Show upgrade/contact admin message
-5. **Not found errors**: Show 404 page with navigation
-
----
-
-## Performance Optimization
-
-1. **Lazy load heavy components**: Use `React.lazy()` for wizards, charts
-2. **Debounce search inputs**: Wait 300ms before searching
-3. **Paginate large lists**: Default 25 items per page
-4. **Cache queries**: Use React Query's stale time
-5. **Optimize images**: Use Next.js Image component
-6. **Virtual scrolling**: For very long lists (>1000 items)
-
----
-
-## Testing Strategy (Optional but Recommended)
-
-1. **Unit tests**: Utility functions, calculations
-2. **Integration tests**: API calls, form submissions
-3. **E2E tests**: Critical user flows (create booking)
-
----
-
-## Deployment Checklist
-
-- [ ] All environment variables set
-- [ ] Database migrations applied
-- [ ] RLS policies tested
-- [ ] Forms validate correctly
-- [ ] Error handling works
-- [ ] Loading states display
-- [ ] Mobile responsive
-- [ ] Cross-browser tested
-- [ ] Performance optimized
-
----
-
-## Getting Started
-
-**Recommended Build Order:**
-1. Phase 1: Suppliers (foundation)
-2. Phase 2: Contracts
-3. Phase 3: Products
-4. Phase 4: Allocations & Inventory
-5. Phase 5: Supplier Rates
-6. Phase 6: Selling Rates
-7. Phase 7: Customers
-8. Phase 8: Bookings (most complex)
-9. Phase 9: Dashboard & Reports
-
-**Start with:**
-```bash
-# Install additional dependencies
-npm install @tanstack/react-query @tanstack/react-table
-npm install react-hook-form zod @hookform/resolvers
-npm install date-fns recharts
-
-# Generate Supabase types
-supabase gen types typescript --project-id your-project > src/types/database.ts
+### **1. Check Availability**
+```typescript
+async function checkAvailability(
+  productId: string,
+  quantity: number,
+  serviceDate: string
+): Promise<AvailabilityResult> {
+  // 1. Check if pooled
+  const pool = await getPoolForProduct(productId);
+  
+  if (pool) {
+    // Use pool allocation function
+    return checkPoolAvailability(pool.id, quantity, serviceDate);
+  }
+  
+  // 2. Check direct allocation
+  const allocation = await getAllocationForProduct(productId, serviceDate);
+  
+  if (!allocation) {
+    // 3. Check if on-request product
+    return { available: true, type: 'on_request' };
+  }
+  
+  // 4. Check inventory
+  const inventory = await getInventory(allocation.id);
+  return {
+    available: inventory.available_quantity >= quantity,
+    quantity_available: inventory.available_quantity
+  };
+}
 ```
 
-Then begin with **Task 1.1: Setup TypeScript Types**
+### **2. Allocate from Pool**
+```typescript
+async function allocateFromPool(
+  poolId: string,
+  quantity: number,
+  serviceDate: string
+): Promise<AllocationResult[]> {
+  // Get pool strategy
+  const pool = await getPool(poolId);
+  
+  // Get members sorted by strategy
+  const members = await getPoolMembers(poolId, {
+    sortBy: pool.usage_strategy,
+    availableOnly: true
+  });
+  
+  const allocations = [];
+  let remaining = quantity;
+  
+  for (const member of members) {
+    if (remaining === 0) break;
+    
+    const toAllocate = Math.min(remaining, member.available_quantity);
+    
+    // Decrement inventory
+    await decrementInventory(member.id, toAllocate);
+    
+    allocations.push({
+      allocation_inventory_id: member.id,
+      quantity: toAllocate,
+      cost: member.batch_cost_per_unit,
+      supplier: member.supplier_name
+    });
+    
+    remaining -= toAllocate;
+  }
+  
+  if (remaining > 0) {
+    throw new Error('Insufficient inventory');
+  }
+  
+  return allocations;
+}
+```
+
+### **3. Calculate Cost from Rate**
+```typescript
+function calculateCostFromRate(
+  rate: SupplierRate,
+  occupancy: { adults: number; children: number }
+): number {
+  // Multi-occupancy pricing
+  if (rate.pricing_details?.occupancy_pricing) {
+    const totalGuests = occupancy.adults + occupancy.children;
+    
+    // Find matching occupancy
+    for (const [type, pricing] of Object.entries(rate.pricing_details.occupancy_pricing)) {
+      if (
+        pricing.adults === occupancy.adults &&
+        (pricing.children || 0) === occupancy.children
+      ) {
+        return pricing.total_cost || pricing.cost_per_night * getNights(rate);
+      }
+    }
+  }
+  
+  // Fallback to base cost
+  return rate.base_cost;
+}
+```
+
+### **4. Get FX Rate**
+```typescript
+async function getFxRate(
+  fromCurrency: string,
+  toCurrency: string,
+  date: string
+): Promise<number> {
+  // Same currency
+  if (fromCurrency === toCurrency) {
+    return 1.0;
+  }
+  
+  // Check cache
+  const cached = await db.query(`
+    SELECT rate FROM exchange_rates
+    WHERE from_currency = $1
+      AND to_currency = $2
+      AND date = $3
+  `, [fromCurrency, toCurrency, date]);
+  
+  if (cached.rows[0]) {
+    return cached.rows[0].rate;
+  }
+  
+  // Fetch from API and cache
+  const rate = await fetchFxRateFromAPI(fromCurrency, toCurrency, date);
+  
+  await db.query(`
+    INSERT INTO exchange_rates (from_currency, to_currency, rate, date)
+    VALUES ($1, $2, $3, $4)
+  `, [fromCurrency, toCurrency, rate, date]);
+  
+  return rate;
+}
+```
 
 ---
 
-## Success Criteria
+## 🚀 Common Workflows
 
-The system is complete when:
-✅ Users can create suppliers, contracts, products
-✅ Users can set up inventory allocations
-✅ Users can manage availability calendars
-✅ Users can configure supplier costs and selling rates
-✅ Users can create customers
-✅ Users can create bookings with real-time availability checks
-✅ System prevents overbooking
-✅ Multi-currency support works
-✅ Margins are calculated correctly
-✅ All pages are responsive
-✅ Error handling is comprehensive
-✅ Loading states are smooth
+### **Workflow 1: Create a Quote**
+
+```typescript
+// 1. Customer inquiry
+const customer = await createOrGetCustomer({
+  email: 'james@example.com',
+  first_name: 'James',
+  last_name: 'Thompson'
+});
+
+// 2. Create quote
+const quote = await createBooking({
+  customer_id: customer.id,
+  booking_status: 'quote',
+  quote_expires_at: addDays(new Date(), 7),
+  display_currency: 'GBP'
+});
+
+// 3. Add items
+await addBookingItem(quote.id, {
+  product_option_id: 'fairmont-standard-3n',
+  quantity: 2,
+  adults: 4,
+  service_date_from: '2025-05-22',
+  service_date_to: '2025-05-25',
+  
+  // Pricing calculated from rates
+  unit_cost: 2850,
+  cost_currency: 'EUR',
+  unit_price: 3600,
+  price_currency: 'GBP',
+  
+  item_status: 'provisional'  // In quote, not confirmed
+});
+
+// 4. Send to customer
+await sendQuoteEmail(quote.id);
+```
+
+### **Workflow 2: Convert Quote to Booking**
+
+```typescript
+// 1. Customer accepts quote
+const booking = await convertQuoteToBooking(quoteId);
+
+// Updates:
+// - booking_status: 'quote' → 'provisional'
+// - converted_from_quote_id: quoteId
+// - quote_version incremented
+
+// 2. Send payment link
+await sendPaymentLink(booking.id);
+
+// 3. On deposit received
+await processPayment(booking.id, {
+  amount: booking.total_price * 0.3,  // 30% deposit
+  payment_method: 'stripe'
+});
+
+// Updates:
+// - payment_status: 'pending' → 'partial'
+// - booking_status: 'provisional' → 'confirmed'
+// - Inventory decremented
+
+// 4. Confirm with supplier
+await confirmWithSupplier(booking.id);
+```
+
+### **Workflow 3: Create Contract with Allocation**
+
+```typescript
+// 1. Create contract
+const contract = await createContract({
+  supplier_id: supplierId,
+  contract_name: 'Fairmont Monaco GP 2025',
+  contract_type: 'allotment',
+  valid_from: '2025-05-22',
+  valid_to: '2025-05-25',
+  currency: 'EUR'
+});
+
+// 2. Add allocation
+const allocation = await createAllocation({
+  contract_id: contract.id,
+  product_id: productId,
+  allocation_name: 'Standard Rooms',
+  allocation_type: 'allotment',
+  total_quantity: 10,
+  cost_per_unit: 2850,
+  release_days: 60
+});
+
+// 3. Add release schedule
+await createRelease({
+  contract_allocation_id: allocation.id,
+  release_date: '2025-03-22',  // 60 days before
+  release_percentage: 100,
+  penalty_applies: true,
+  penalty_percentage: 100  // Pay full amount if not released
+});
+
+// 4. Create inventory tracking
+await createInventory({
+  contract_allocation_id: allocation.id,
+  total_quantity: 10,
+  available_quantity: 10,
+  sold_quantity: 0,
+  batch_cost_per_unit: 2850
+});
+
+// 5. Add supplier rate
+await createSupplierRate({
+  contract_id: contract.id,
+  product_id: productId,
+  rate_name: 'Fairmont Standard - GP Weekend',
+  rate_basis: 'per_night',
+  base_cost: 950,  // per night
+  currency: 'EUR',
+  valid_from: '2025-05-22',
+  valid_to: '2025-05-25',
+  pricing_details: {
+    occupancy_pricing: {
+      single: { adults: 1, cost_per_night: 950 },
+      double: { adults: 2, cost_per_night: 950 },
+      triple: { adults: 3, cost_per_night: 1000 }
+    }
+  }
+});
+```
 
 ---
 
-**Let's build this! Start with Phase 1 and work through systematically.** 🚀
+## 📊 Reporting Queries
 
-Focus on getting Suppliers fully working first before moving to Contracts. This builds confidence and establishes patterns that will be reused throughout the system.
+### **Booking Revenue by Month**
+```sql
+SELECT 
+  DATE_TRUNC('month', booking_date) as month,
+  COUNT(*) as booking_count,
+  SUM(total_price) as revenue,
+  SUM(total_cost) as cost,
+  SUM(total_price - total_cost) as margin
+FROM bookings
+WHERE booking_status IN ('confirmed', 'completed')
+  AND organization_id = $1
+GROUP BY month
+ORDER BY month DESC;
+```
+
+### **Allocation Utilization**
+```sql
+SELECT 
+  ca.allocation_name,
+  ai.total_quantity,
+  ai.sold_quantity,
+  ai.available_quantity,
+  ROUND(ai.sold_quantity::NUMERIC / ai.total_quantity * 100, 2) as utilization_pct,
+  ca.release_days,
+  ca.valid_from - CURRENT_DATE as days_until_release
+FROM contract_allocations ca
+JOIN allocation_inventory ai ON ca.id = ai.contract_allocation_id
+WHERE ca.contract_id = $1
+ORDER BY utilization_pct DESC;
+```
+
+### **Items Needing Sourcing**
+```sql
+SELECT 
+  b.booking_reference,
+  p.name as product_name,
+  bi.quantity,
+  bi.service_date_from,
+  bi.service_date_from - CURRENT_DATE as days_until_service,
+  CASE 
+    WHEN bi.service_date_from - CURRENT_DATE < 7 THEN 'urgent'
+    WHEN bi.service_date_from - CURRENT_DATE < 30 THEN 'high'
+    ELSE 'normal'
+  END as priority
+FROM booking_items bi
+JOIN bookings b ON bi.booking_id = b.id
+JOIN products p ON bi.product_id = p.id
+WHERE bi.item_status = 'on_request'
+  AND b.booking_status NOT IN ('cancelled', 'quote')
+ORDER BY bi.service_date_from ASC;
+```
+
+---
+
+## 🔐 Security & Permissions
+
+### Role-Based Access Control
+```typescript
+enum UserRole {
+  OWNER = 'owner',        // Full access
+  ADMIN = 'admin',        // Manage everything except billing
+  AGENT = 'agent',        // Create bookings, view contracts
+  VIEWER = 'viewer'       // Read-only
+}
+
+// Permission checks
+function canEditContract(user: User): boolean {
+  return ['owner', 'admin'].includes(user.role);
+}
+
+function canCreateBooking(user: User): boolean {
+  return ['owner', 'admin', 'agent'].includes(user.role);
+}
+```
+
+### Data Isolation
+All queries must filter by `organization_id`:
+```typescript
+// ✅ Correct
+const bookings = await db.query(`
+  SELECT * FROM bookings
+  WHERE organization_id = $1
+`, [user.organization_id]);
+
+// ❌ Wrong - exposes all organizations!
+const bookings = await db.query(`SELECT * FROM bookings`);
+```
+
+---
+
+## 🧪 Testing Strategy
+
+### Unit Tests
+- Utility functions (formatters, calculators)
+- Business logic (allocation, pricing)
+- Validation (Zod schemas)
+
+### Integration Tests
+- API endpoints
+- Database queries
+- FX rate fetching
+
+### E2E Tests
+- Complete booking flow
+- Quote conversion
+- Contract creation
+
+---
+
+## 🚨 Important Notes for Cursor
+
+### When Creating New Features:
+
+1. **Always use organization_id** - Multi-tenant by default
+2. **Use UUIDs** - All IDs are UUIDs, not integers
+3. **Follow naming conventions** - Snake_case for DB, camelCase for TS
+4. **Include audit fields** - created_at, updated_at, created_by
+5. **Use JSONB for flexible data** - pricing_details, attributes, settings
+6. **Handle FX carefully** - Lock rates at booking time
+7. **Status enums** - Use existing enums, don't create new statuses
+8. **Soft deletes** - Use is_active flags where appropriate
+9. **shadcn/ui components** - Always use shadcn for UI
+10. **TypeScript strict mode** - All code must be fully typed
+
+### Common Gotchas:
+
+1. **Pooling splits bookings** - One customer order → Multiple booking_items
+2. **Quotes don't decrement inventory** - Only confirmed bookings do
+3. **Rates are optional** - Not everything needs a rate (simple products)
+4. **Contracts are optional** - On-request products have no contract
+5. **Currency is everywhere** - Always track both cost AND price currencies
+6. **Product ≠ Product Option** - Product is generic, option is specific
+7. **Allocation ≠ Inventory** - Allocation is contract, inventory is tracking
+
+---
+
+## 📚 Resources
+
+### Key Files to Reference:
+- `/database/schema.sql` - Complete database schema
+- `/types/database.types.ts` - TypeScript types
+- `/components/ui/*` - shadcn/ui components
+- `/lib/utils.ts` - Helper functions
+
+### Useful Queries:
+```sql
+-- Get all active allocations for product
+SELECT * FROM contract_allocations 
+WHERE product_id = $1 AND is_active = true;
+
+-- Get pool for product
+SELECT * FROM allocation_pools 
+WHERE product_id = $1 AND is_active = true;
+
+-- Check inventory availability
+SELECT available_quantity FROM allocation_inventory
+WHERE contract_allocation_id = $1;
+
+-- Get active rate for date
+SELECT * FROM supplier_rates
+WHERE product_id = $1 
+  AND valid_from <= $2 
+  AND valid_to >= $2
+  AND is_active = true;
+```
+
+---
+
+## 🎯 Next Steps for Development
+
+### Phase 1: Core Booking Flow
+1. Products & options management
+2. Customer management
+3. Quote creation
+4. Quote → Booking conversion
+5. Payment processing
+
+### Phase 2: Inventory Management
+1. Contracts & allocations
+2. Inventory tracking
+3. Release date monitoring
+4. Utilization reporting
+
+### Phase 3: Advanced Features
+1. Pooling
+2. Multi-currency
+3. Supplier rates
+4. Items needing sourcing
+5. Advanced reporting
+
+### Phase 4: Operations
+1. Automated release notifications
+2. Supplier confirmations
+3. Booking modifications
+4. Cancellations & refunds
+
+---
+
+## 💡 Philosophy
+
+This platform follows these principles:
+
+1. **Flexibility First** - Support complex, real-world scenarios
+2. **Data Integrity** - Track everything for audit and reporting
+3. **User Experience** - Inline editing, accordions, smooth UX
+4. **Enterprise Ready** - Multi-tenant, role-based, scalable
+5. **Pragmatic** - Use JSONB for flexible data, not 100 tables
+
+The goal is to handle the **messy reality** of tour operations:
+- Multiple suppliers for same product
+- Different currencies everywhere
+- Complex pricing (occupancy, seasonal, extras)
+- Sell-first, source later
+- Quote management
+- Inventory pooling
+
+This is NOT a simple e-commerce platform. It's an **enterprise B2B booking system** for tour operators! 🚀
+
+---
+
+**Made with ❤️ for sports travel professionals**
