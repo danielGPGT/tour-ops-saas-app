@@ -195,34 +195,8 @@ export default function ProductDetailsPage() {
         <span className="text-sm line-clamp-2">{item.description || '—'}</span>
       )
     },
-    {
-      key: 'base_price',
-      header: 'Price',
-      width: 'w-[100px]',
-      render: (item) => (
-        <div className="text-sm text-center">
-          {item.base_price ? (
-            <span className="font-medium">{item.base_price?.toFixed(2)} {item.currency || 'USD'}</span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'base_cost',
-      header: 'Cost',
-      width: 'w-[100px]',
-      render: (item) => (
-        <div className="text-sm text-center">
-          {item.base_cost ? (
-            <span className="font-medium">{item.base_cost?.toFixed(2)} {item.currency || 'USD'}</span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </div>
-      )
-    },
+    // NOTE: Pricing columns removed - pricing is now managed through supplier_rates and selling_rates
+    // TODO: Add columns to display rates from supplier_rates and selling_rates tables
     {
       key: 'is_active',
       header: 'Status',

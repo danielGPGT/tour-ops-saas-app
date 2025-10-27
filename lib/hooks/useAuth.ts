@@ -46,15 +46,23 @@ export function useAuth() {
     )
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [supabase, router])
 
   const loadUserProfile = async (authId: string) => {
     try {
+      // First, try to get user by email from auth
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      
+      if (!authUser?.email) {
+        console.error('No email found in auth user')
+        return
+      }
+      
+      // Query users table by email
       const { data, error } = await supabase
         .from('users')
         .select(`
           id,
-          auth_id,
           organization_id,
           email,
           first_name,
@@ -71,11 +79,12 @@ export function useAuth() {
             is_active
           )
         `)
-        .eq('auth_id', authId)
+        .eq('email', authUser.email)
         .single()
       
       if (error) {
         console.error('Error loading user profile:', error)
+        console.error('Auth user email:', authUser.email)
         return
       }
       

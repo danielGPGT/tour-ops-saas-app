@@ -38,6 +38,14 @@ export interface Product {
   location: Location | Record<string, any> | null
   venue_name: string | null
   
+  // Media & Tags (stored in attributes JSONB or as separate fields if added to schema)
+  media?: Array<{
+    url: string
+    alt?: string
+    is_primary?: boolean
+  }>
+  tags?: string[]
+  
   // Details (JSONB for flexible attributes)
   attributes: Record<string, any> | null
   
@@ -67,6 +75,9 @@ export interface ProductType {
 
 /**
  * Product Option interface matching database schema
+ * 
+ * NOTE: Pricing is NOT stored in product_options. Use supplier_rates and selling_rates instead.
+ * This enables seasonal pricing, multiple suppliers, audit trail, etc.
  */
 export interface ProductOption {
   // Core fields
@@ -78,13 +89,23 @@ export interface ProductOption {
   option_code: string
   description: string | null
   
-  // Pricing (SIMPLE!)
-  base_price: number | null
-  base_cost: number | null
-  currency: string | null
+  // NO PRICING HERE! ✅
+  // Pricing is managed through supplier_rates (what supplier charges) and selling_rates (what you charge)
+  // This enables:
+  // - Seasonal pricing (different rates for different dates)
+  // - Multiple suppliers for same product
+  // - Audit trail (track which rate was used at booking)
+  // - Occupancy-based pricing
   
   // Details (JSONB for flexible attributes)
   attributes: Record<string, any> | null
+  
+  // Images (stored in attributes.images)
+  images?: Array<{
+    url: string
+    alt?: string
+    is_primary?: boolean
+  }>
   
   // Status
   is_active: boolean | null

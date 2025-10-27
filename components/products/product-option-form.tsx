@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { productOptionSchema, type ProductOptionFormData } from '@/lib/validations/product.schema'
-import { Hash, DollarSign } from 'lucide-react'
+import { Hash } from 'lucide-react'
 import type { ProductOption } from '@/lib/types/product'
 
 interface ProductOptionFormProps {
@@ -26,9 +26,7 @@ export function ProductOptionForm({ option, onSubmit, onCancel, isLoading }: Pro
       option_name: option?.option_name || '',
       option_code: option?.option_code || '',
       description: option?.description || '',
-      base_price: option?.base_price || undefined,
-      base_cost: option?.base_cost || undefined,
-      currency: option?.currency || 'USD',
+      // NO PRICING HERE! Use supplier_rates and selling_rates instead
       attributes: option?.attributes || {},
       is_active: option?.is_active ?? true
     }
@@ -85,44 +83,8 @@ export function ProductOptionForm({ option, onSubmit, onCancel, isLoading }: Pro
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="base_price" className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Base Price
-              </Label>
-              <Input
-                id="base_price"
-                type="number"
-                step="0.01"
-                {...form.register('base_price', { valueAsNumber: true })}
-                placeholder="0.00"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="base_cost" className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Base Cost
-              </Label>
-              <Input
-                id="base_cost"
-                type="number"
-                step="0.01"
-                {...form.register('base_cost', { valueAsNumber: true })}
-                placeholder="0.00"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
-              <Input
-                id="currency"
-                {...form.register('currency')}
-                placeholder="USD"
-                maxLength={3}
-              />
-            </div>
-          </div>
-
+          {/* NOTE: Pricing fields removed - use supplier_rates and selling_rates instead */}
+          
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"

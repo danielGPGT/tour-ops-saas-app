@@ -15,7 +15,8 @@ import {
   Clock,
   Car,
   Ticket,
-  Package
+  Package,
+  Tag
 } from 'lucide-react'
 import { format } from 'date-fns'
 import type { Product } from '@/lib/types/product'
@@ -116,6 +117,28 @@ export function ProductList({ products, onEdit, onDelete, onView, onRowClick, is
               : 'Not specified'
             }
           </span>
+        </div>
+      )
+    },
+    {
+      key: 'tags',
+      header: 'Tags',
+      render: (product: Product) => (
+        <div className="flex flex-wrap gap-1">
+          {product.tags && product.tags.length > 0 ? (
+            product.tags.slice(0, 2).map((tag, index) => (
+              <Badge 
+                key={index} 
+                variant="secondary" 
+                className="text-xs"
+              >
+                <Tag className="h-3 w-3 mr-1" />
+                {tag}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
         </div>
       )
     },

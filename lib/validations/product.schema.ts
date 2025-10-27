@@ -24,13 +24,13 @@ export const productSchema = z.object({
 })
 
 // Product option schema - MATCHES DATABASE SCHEMA
+// NOTE: Pricing fields (base_price, base_cost, currency) are removed!
+// Pricing is now managed through supplier_rates and selling_rates tables.
 export const productOptionSchema = z.object({
   option_name: z.string().min(2, 'Option name is required'),
   option_code: z.string().min(2).max(100),
   description: z.string().optional().nullable(),
-  base_price: z.number().optional().nullable(),
-  base_cost: z.number().optional().nullable(),
-  currency: z.string().length(3, 'Currency must be 3 characters').optional().nullable(),
+  // NO PRICING HERE! Use supplier_rates and selling_rates instead
   attributes: z.any().optional().nullable(),
   is_active: z.boolean().default(true)
 })
