@@ -1,15 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from './useAuth'
 import * as productQueries from '@/lib/queries/products'
+import * as sellingRateQueries from '@/lib/queries/selling-rates'
 import type { Product, ProductType, ProductOption, SellingRate, ProductFilters, ProductSort } from '@/lib/types/product'
 
-// Products hooks
-export function useProducts(filters?: ProductFilters, sort?: ProductSort) {
+// Products hooks with pagination
+export function useProducts(
+  filters?: ProductFilters, 
+  sort?: ProductSort,
+  page: number = 1,
+  pageSize: number = 100
+) {
   const { profile } = useAuth()
   
   return useQuery({
-    queryKey: ['products', profile?.organization_id, filters, sort],
-    queryFn: () => productQueries.getProducts(profile!.organization_id, filters, sort),
+    queryKey: ['products', profile?.organization_id, filters, sort, page, pageSize],
+    queryFn: () => productQueries.getProducts(profile!.organization_id, filters, sort, page, pageSize),
     enabled: !!profile?.organization_id
   })
 }
@@ -28,9 +34,18 @@ export function useCreateProduct() {
   
   return useMutation({
     mutationFn: (data: Partial<Product>) => {
+      console.log('useCreateProduct - profile:', profile)
+      console.log('useCreateProduct - organization_id:', profile?.organization_id)
+      
       if (!profile?.organization_id) {
+        console.error('Profile or organization_id is missing!')
         throw new Error('User profile not loaded. Please try again.')
       }
+      
+      console.log('Calling productQueries.createProduct with data:', {
+        ...data,
+        organization_id: profile.organization_id
+      })
       
       return productQueries.createProduct({
         ...data,
@@ -139,10 +154,10 @@ export function useDeleteProductOption() {
 }
 
 // Selling rates hooks
-export function useSellingRates(productId: string) {
+export function useSellingRates(productId: string, productOptionId?: string) {
   return useQuery({
-    queryKey: ['selling-rates', productId],
-    queryFn: () => productQueries.getSellingRates(productId),
+    queryKey: ['selling-rates', productId, productOptionId],
+    queryFn: () => sellingRateQueries.getSellingRates(productId, productOptionId),
     enabled: !!productId
   })
 }
@@ -152,8 +167,8 @@ export function useCreateSellingRate() {
   const { profile } = useAuth()
   
   return useMutation({
-    mutationFn: (data: Partial<SellingRate>) => 
-      productQueries.createSellingRate({
+    mutationFn: (data: any) => 
+      sellingRateQueries.createSellingRate({
         ...data,
         organization_id: profile!.organization_id
       }),
@@ -169,7 +184,7 @@ export function useUpdateSellingRate() {
   
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<SellingRate> }) =>
-      productQueries.updateSellingRate(id, data),
+      sellingRateQueries.updateSellingRate(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['selling-rates'] })
     }
@@ -180,7 +195,7 @@ export function useDeleteSellingRate() {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: (id: string) => productQueries.deleteSellingRate(id),
+    mutationFn: (id: string) => sellingRateQueries.deleteSellingRate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['selling-rates'] })
     }

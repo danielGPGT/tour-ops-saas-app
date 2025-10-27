@@ -1,51 +1,42 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Plus, X, Star, Upload, Image as ImageIcon, Edit2, Check } from 'lucide-react'
+import { Plus, X, Star, Upload, Image as ImageIcon, Edit2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { useUpdateProduct } from '@/lib/hooks/useProducts'
-import type { Product } from '@/lib/types/product'
 import { useDropzone } from 'react-dropzone'
 import { toast } from 'sonner'
 import { StorageService } from '@/lib/storage'
 
-interface ProductImagesInlineEditProps {
-  product: Product
+interface ProductOptionImagesInlineEditProps {
+  images: Array<{
+    url: string
+    alt?: string
+    is_primary?: boolean
+  }>
+  onImagesChange: (images: Array<{
+    url: string
+    alt?: string
+    is_primary?: boolean
+  }>) => void
+  productId: string
   className?: string
 }
 
-interface ImageData {
-  url: string
-  alt?: string
-  is_primary?: boolean
-}
-
-export function ProductImagesInlineEdit({
-  product,
+export function ProductOptionImagesInlineEdit({
+  images = [],
+  onImagesChange,
+  productId,
   className
-}: ProductImagesInlineEditProps) {
-  const [images, setImages] = useState<ImageData[]>(product.media || [])
+}: ProductOptionImagesInlineEditProps) {
   const [uploading, setUploading] = useState(false)
   const [editingAlt, setEditingAlt] = useState<number | null>(null)
   const [altText, setAltText] = useState('')
-  const updateProduct = useUpdateProduct()
 
-  const saveImages = async (newImages: ImageData[]) => {
-    try {
-      await updateProduct.mutateAsync({
-        id: product.id,
-        data: {
-          media: newImages
-        }
-      })
-      setImages(newImages)
-    } catch (error) {
-      console.error('Error updating images:', error)
-      toast.error('Failed to update images')
-    }
+  const saveImages = (newImages: typeof images) => {
+    onImagesChange(newImages)
   }
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -58,14 +49,14 @@ export function ProductImagesInlineEdit({
         try {
           const uploadedImage = await StorageService.uploadImage(
             file,
-            product.id,
+            productId,
             images.length === 0 && index === 0
           )
           return {
             url: uploadedImage.url,
             alt: uploadedImage.alt,
             is_primary: uploadedImage.is_primary
-          } as ImageData
+          }
         } catch (error) {
           console.error(`Error uploading image ${file.name}:`, error)
           throw error
@@ -75,14 +66,7 @@ export function ProductImagesInlineEdit({
       const uploadedImages = await Promise.all(uploadPromises)
       const updatedImages = [...images, ...uploadedImages]
       
-      // Update the product with new images (already uploaded to storage)
-      await updateProduct.mutateAsync({
-        id: product.id,
-        data: {
-          media: updatedImages
-        }
-      })
-      setImages(updatedImages)
+      saveImages(updatedImages)
       toast.success(`${acceptedFiles.length} image(s) uploaded`)
     } catch (error) {
       console.error('Error uploading images:', error)
@@ -90,7 +74,7 @@ export function ProductImagesInlineEdit({
     } finally {
       setUploading(false)
     }
-  }, [images, product.id, updateProduct])
+  }, [images, productId])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -104,30 +88,30 @@ export function ProductImagesInlineEdit({
     noKeyboard: false
   })
 
-  const removeImage = async (index: number) => {
+  const removeImage = (index: number) => {
     const newImages = images.filter((_, i) => i !== index)
     
     if (images[index]?.is_primary && newImages.length > 0) {
       newImages[0].is_primary = true
     }
     
-    await saveImages(newImages)
+    saveImages(newImages)
     toast.success('Image removed')
   }
 
-  const setPrimaryImage = async (index: number) => {
+  const setPrimaryImage = (index: number) => {
     const newImages = images.map((img, i) => ({
       ...img,
       is_primary: i === index
     }))
-    await saveImages(newImages)
+    saveImages(newImages)
     toast.success('Primary image updated')
   }
 
-  const saveAlt = async (index: number) => {
+  const saveAlt = (index: number) => {
     const newImages = [...images]
     newImages[index].alt = altText
-    await saveImages(newImages)
+    saveImages(newImages)
     setEditingAlt(null)
     setAltText('')
     toast.success('Alt text updated')
@@ -136,12 +120,12 @@ export function ProductImagesInlineEdit({
   return (
     <div className={cn('space-y-2', className)}>
       {/* Image Grid */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {images.map((image, index) => (
-          <div key={index} className="group relative aspect-square rounded-md overflow-hidden bg-muted border border-transparent hover:border-primary/50 transition-all">
+          <div key={index} className="group relative aspect-video rounded-md overflow-hidden bg-muted border border-transparent hover:border-primary/50 transition-all">
             <img
               src={image.url}
-              alt={image.alt || `Product image ${index + 1}`}
+              alt={image.alt || `Option image ${index + 1}`}
               className="w-full h-full object-cover"
             />
             
@@ -173,7 +157,7 @@ export function ProductImagesInlineEdit({
                         setAltText(image.alt || '')
                       }}
                     >
-                      <Edit2 className="h-3 w-3 text-primary-foreground" /> <span className="ml-1 text-xs text-primary-foreground font-medium">Edit alt text</span>
+                      <Edit2 className="h-3 w-3 text-primary-foreground" />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-64" align="end" side="top">
@@ -242,7 +226,6 @@ export function ProductImagesInlineEdit({
                 </div>
               )}
             </div>
-            
           </div>
         ))}
         
@@ -251,79 +234,46 @@ export function ProductImagesInlineEdit({
           <div
             {...getRootProps()}
             className={cn(
-              "aspect-square rounded-md border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all",
-              isDragActive
-                ? "border-primary bg-primary/10"
-                : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50",
+              "aspect-video rounded-md border-2 border-dashed border-gray-300 hover:border-primary/50 cursor-pointer transition-colors flex items-center justify-center bg-muted/50",
+              isDragActive && "border-primary bg-primary/5",
               uploading && "opacity-50 cursor-not-allowed"
             )}
           >
             <input {...getInputProps()} />
-            {uploading ? (
-              <div className="flex flex-col items-center gap-1">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                <span className="text-xs text-muted-foreground">Uploading...</span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-1 p-2">
-                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                  <Plus className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-medium">Add</p>
-                  <p className="text-xs text-muted-foreground hidden sm:block">
-                    {isDragActive ? 'Drop' : 'Click'}
-                  </p>
-                </div>
-              </div>
-            )}
+            <div className="text-center p-2">
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-1" />
+              <p className="text-xs font-medium text-muted-foreground">
+                {uploading ? 'Uploading...' : 'Drop or click'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Max 5 images
+              </p>
+            </div>
           </div>
         )}
       </div>
       
-      {/* Info & Stats */}
-      {images.length > 0 && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-          <span>{images.length} / 5 images</span>
-          <span className="text-right">Max 5MB • JPG, PNG, WebP</span>
-        </div>
-      )}
-      
-      {/* Empty State */}
       {images.length === 0 && (
         <div
           {...getRootProps()}
           className={cn(
-            "rounded-md border-2 border-dashed p-6 text-center cursor-pointer transition-all",
-            isDragActive
-              ? "border-primary bg-primary/10"
-              : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
+            "rounded-lg border-2 border-dashed border-gray-300 hover:border-primary/50 cursor-pointer transition-colors flex items-center justify-center bg-muted/50 p-8",
+            isDragActive && "border-primary bg-primary/5",
+            uploading && "opacity-50 cursor-not-allowed"
           )}
         >
           <input {...getInputProps()} />
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-              {uploading ? (
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-              ) : (
-                <Upload className="h-6 w-6 text-muted-foreground" />
-              )}
-            </div>
-            <div>
-              <p className="text-sm font-medium mb-0.5">
-                {uploading ? 'Uploading...' : 'Add Images'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {isDragActive 
-                  ? 'Drop here' 
-                  : 'Drag & drop or click to browse'
-                }
-              </p>
-            </div>
+          <div className="text-center">
+            <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm font-medium text-foreground mb-1">
+              {uploading ? 'Uploading images...' : 'Drop images here or click to upload'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Supports JPG, PNG, WebP (max 5MB each, up to 5 images)
+            </p>
           </div>
         </div>
       )}
     </div>
   )
 }
-

@@ -10,74 +10,138 @@ const baseOptionSchema = z.object({
   is_active: z.boolean().default(true)
 })
 
-// Accommodation option schema
+// Accommodation option schema - UPDATED to match guide
+// Note: Option-specific attributes are stored in the attributes JSONB field
 export const accommodationOptionSchema = baseOptionSchema.extend({
-  bed_configuration: z.string().min(1, 'Bed configuration is required'),
-  room_size_sqm: z.number().min(1).max(500).optional(),
-  view_type: z.string().optional(),
-  floor_range: z.string().optional(),
-  standard_occupancy: z.number().int().min(1).max(20),
-  max_occupancy: z.number().int().min(1).max(20),
-  amenities: z.array(z.string()).optional()
-}).refine(data => data.max_occupancy >= data.standard_occupancy, {
-  message: 'Max occupancy must be >= standard occupancy',
-  path: ['max_occupancy']
+  attributes: z.object({
+    room_type: z.enum(['standard', 'deluxe', 'suite', 'junior_suite']).optional(),
+    bed_configuration: z.string().optional(), // king, queen, twin, double
+    view_type: z.string().optional(), // city, sea, garden, partial_sea
+    room_size_sqm: z.number().min(1).max(500).optional(),
+    floor_preference: z.enum(['low', 'mid', 'high', 'no_preference']).optional(),
+    smoking: z.boolean().optional(),
+    accessible: z.boolean().optional(),
+    max_occupancy: z.number().int().min(1).max(20).optional(),
+    standard_occupancy: z.number().int().min(1).max(20).optional(),
+    extra_bed_available: z.boolean().optional(),
+    room_amenities: z.array(z.string()).optional(),
+    nights: z.number().int().min(1).optional(), // Duration
+    includes: z.array(z.string()).optional()
+  }).optional().nullable()
 })
 
-// Event option schema
+// Event option schema - UPDATED to match guide
 export const eventOptionSchema = baseOptionSchema.extend({
-  ticket_type: z.enum(['seated', 'standing', 'vip_lounge', 'hospitality', 'general']),
-  section: z.string().optional(),
-  seat_details: z.string().optional(),
-  access_level: z.enum(['general', 'vip', 'premium', 'hospitality', 'backstage']),
-  includes: z.array(z.string()).optional()
+  attributes: z.object({
+    ticket_type: z.enum(['3_day', 'sunday_only', 'saturday_sunday']).optional(),
+    seat_category: z.enum(['standard', 'premium', 'vip']).optional(),
+    age_category: z.enum(['adult', 'child', 'concession']).optional(),
+    days_included: z.array(z.string()).optional(),
+    sessions: z.array(z.string()).optional(),
+    seat_details: z.object({
+      row: z.string().optional(),
+      section: z.string().optional(),
+      entrance: z.string().optional()
+    }).optional(),
+    requires_id: z.boolean().optional(),
+    digital_ticket: z.boolean().optional(),
+    physical_ticket: z.boolean().optional()
+  }).optional().nullable()
 })
 
-// Transfer option schema
+// Transport option schema
+export const transportOptionSchema = baseOptionSchema.extend({
+  attributes: z.object({
+    service_class: z.enum(['economy', 'premium_economy', 'business', 'first']).optional(),
+    ticket_flexibility: z.enum(['flexible', 'semi_flexible', 'non_flexible']).optional(),
+    typical_airlines: z.array(z.string()).optional()
+  }).optional().nullable()
+})
+
+// Transfer option schema - UPDATED to match guide
 export const transferOptionSchema = baseOptionSchema.extend({
-  vehicle_type: z.enum(['sedan', 'suv', 'van', 'minibus', 'bus', 'luxury', 'limousine']),
-  max_passengers: z.number().int().min(1).max(60),
-  max_luggage: z.number().int().min(0).max(100),
-  vehicle_features: z.array(z.string()).optional(),
-  vehicle_class: z.enum(['economy', 'business', 'luxury', 'premium']).optional(),
-  standard_occupancy: z.number().int().min(1).max(60)
-}).refine(data => data.max_passengers >= data.standard_occupancy, {
-  message: 'Max passengers must be >= standard occupancy',
-  path: ['max_passengers']
+  attributes: z.object({
+    vehicle_type: z.string().optional(),
+    vehicle_class: z.string().optional(),
+    capacity: z.object({
+      passengers: z.number().int().min(1).max(60).optional(),
+      luggage_large: z.number().int().min(0).optional(),
+      luggage_small: z.number().int().min(0).optional()
+    }).optional(),
+    vehicle_features: z.array(z.string()).optional(),
+    driver_info: z.object({
+      uniformed: z.boolean().optional(),
+      english_speaking: z.boolean().optional(),
+      professional_license: z.boolean().optional()
+    }).optional(),
+    pricing_basis: z.enum(['per_vehicle', 'per_person']).optional(),
+    additional_stops: z.object({
+      allowed: z.boolean().optional(),
+      max_stops: z.number().int().optional(),
+      additional_cost: z.number().optional()
+    }).optional(),
+    child_seats: z.object({
+      available: z.boolean().optional(),
+      cost_per_seat: z.number().optional()
+    }).optional()
+  }).optional().nullable()
 })
 
-// Activity option schema
-export const activityOptionSchema = baseOptionSchema.extend({
-  experience_type: z.enum(['group', 'private', 'self_guided', 'shared']),
-  min_group_size: z.number().int().min(1).optional(),
-  max_group_size: z.number().int().min(1).optional(),
-  duration_hours: z.number().min(0.5).max(168), // Up to 7 days
-  difficulty_level: z.enum(['easy', 'moderate', 'challenging', 'extreme']),
-  standard_occupancy: z.number().int().min(1),
-  max_occupancy: z.number().int().min(1),
-  includes: z.array(z.string()).optional()
-}).refine(data => {
-  if (data.min_group_size && data.max_group_size) {
-    return data.max_group_size >= data.min_group_size
-  }
-  return true
-}, {
-  message: 'Max group size must be >= min group size',
-  path: ['max_group_size']
+// Experience option schema - UPDATED to match guide
+export const experienceOptionSchema = baseOptionSchema.extend({
+  attributes: z.object({
+    option_type: z.enum(['duration', 'group_size', 'service_level']).optional(),
+    duration_hours: z.number().min(0.5).max(168).optional(),
+    yacht_type: z.string().optional(),
+    capacity_details: z.object({
+      max_guests: z.number().int().min(1).optional(),
+      crew: z.number().int().optional(),
+      cabins: z.number().int().optional()
+    }).optional(),
+    route: z.object({
+      departure: z.string().optional(),
+      stops: z.array(z.string()).optional(),
+      return: z.string().optional()
+    }).optional(),
+    includes_specific: z.array(z.string()).optional(),
+    customization_available: z.boolean().optional(),
+    special_occasions: z.object({
+      birthday: z.boolean().optional(),
+      proposal: z.boolean().optional(),
+      anniversary: z.boolean().optional(),
+      custom_decoration: z.number().optional()
+    }).optional()
+  }).optional().nullable()
 })
 
-// Extra option schema
+// Extra option schema - UPDATED to match guide
 export const extraOptionSchema = baseOptionSchema.extend({
-  extra_type: z.enum(['insurance', 'visa', 'equipment', 'service', 'upgrade', 'other']),
-  unit_type: z.enum(['per_person', 'per_booking', 'per_day', 'per_item']),
-  is_mandatory: z.boolean().default(false),
-  coverage_details: z.string().optional(),
-  validity_days: z.number().int().min(1).optional()
+  attributes: z.object({
+    extra_type: z.enum(['airport_service', 'insurance', 'parking', 'merchandise', 'service']).optional(),
+    access_type: z.enum(['departure', 'arrival', 'both']).optional(),
+    visit_count: z.enum(['single', 'return']).optional(),
+    includes: z.array(z.string()).optional(),
+    restrictions: z.object({
+      alcohol_included: z.boolean().optional(),
+      guest_policy: z.string().optional(),
+      max_stay_hours: z.number().optional()
+    }).optional(),
+    validity: z.object({
+      valid_on_date: z.boolean().optional(),
+      flexible_time: z.boolean().optional(),
+      expiry: z.string().optional()
+    }).optional()
+  }).optional().nullable()
 })
 
 // Export types
 export type AccommodationOptionFormData = z.infer<typeof accommodationOptionSchema>
 export type EventOptionFormData = z.infer<typeof eventOptionSchema>
+export type TransportOptionFormData = z.infer<typeof transportOptionSchema>
 export type TransferOptionFormData = z.infer<typeof transferOptionSchema>
-export type ActivityOptionFormData = z.infer<typeof activityOptionSchema>
+export type ExperienceOptionFormData = z.infer<typeof experienceOptionSchema>
 export type ExtraOptionFormData = z.infer<typeof extraOptionSchema>
+
+// Alias for backward compatibility
+export const activityOptionSchema = experienceOptionSchema
+export type ActivityOptionFormData = ExperienceOptionFormData

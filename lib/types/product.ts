@@ -27,7 +27,8 @@ export interface Product {
   id: string
   organization_id: string
   product_type_id: string
-  supplier_id: string | null  // Linked to supplier
+  // NOTE: No supplier_id - suppliers linked via contracts, not directly to products
+  // This allows products to have multiple suppliers through different contracts
   
   // Basic info
   name: string

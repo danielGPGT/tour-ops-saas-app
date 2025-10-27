@@ -14,8 +14,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { productSchema, type ProductFormData } from '@/lib/validations/product.schema'
 import { useProductTypes } from '@/lib/hooks/useProducts'
+import { useEvents } from '@/lib/hooks/useEvents'
 import { EventToast, showSuccess, showError } from '@/components/common/EventToast'
 import { ImageUpload } from '@/components/common/ImageUpload'
+import { ProductTypeAttributesForm } from './ProductTypeAttributesForm'
 import { 
   Star, 
   Calendar, 
@@ -120,6 +122,7 @@ export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading 
   const [currentStep, setCurrentStep] = useState(1)
   const [selectedProductType, setSelectedProductType] = useState<ProductType | null>(null)
   const { data: productTypes } = useProductTypes()
+  const { data: events = [] } = useEvents()
   
   
 
@@ -129,6 +132,7 @@ export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading 
       name: '',
       code: '',
       description: '',
+      event_id: '',
       location: {
         city: '',
         country: '',
@@ -153,6 +157,7 @@ export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading 
         name: '',
         code: '',
         description: '',
+        event_id: '',
         location: {
           city: '',
           country: '',
@@ -495,6 +500,25 @@ export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading 
               rows={3}
             />
           </div>
+
+                     <div className="space-y-2">
+             <Label htmlFor="event_id">Assign to Event (Optional)</Label>
+             <Select
+               value={form.watch('event_id') || undefined}
+               onValueChange={(value) => form.setValue('event_id', value || undefined)}
+             >
+               <SelectTrigger>
+                 <SelectValue placeholder="Select an event or leave blank" />
+               </SelectTrigger>
+               <SelectContent>
+                 {events.map((event) => (
+                   <SelectItem key={event.id} value={event.id}>
+                     {event.event_name} - {new Date(event.event_date_from).toLocaleDateString()}
+                   </SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+           </div>
 
           <div className="space-y-2">
             <Label>Tags</Label>
@@ -1288,7 +1312,17 @@ export function ProductCreationWizard({ open, onOpenChange, onSubmit, isLoading 
             </div>
             <Card>
               <CardContent className="p-6">
-                {renderAttributes()}
+                {selectedProductType?.type_code ? (
+                  <ProductTypeAttributesForm 
+                    productType={selectedProductType.type_code} 
+                    form={form}
+                  />
+                ) : (
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Please select a product type first</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

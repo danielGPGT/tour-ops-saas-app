@@ -14,7 +14,9 @@ import { ProductList } from '@/components/products/product-list'
 import { ProductCreationWizard } from '@/components/products/ProductCreationWizard'
 import { useProducts, useProductStats, useDeleteProduct, useCreateProduct, useUpdateProduct } from '@/lib/hooks/useProducts'
 import { useProductTypes } from '@/lib/hooks/useProducts'
+import { useEvents } from '@/lib/hooks/useEvents'
 import { EventToast, showSuccess, showError } from '@/components/common/EventToast'
+import { Combobox } from '@/components/common/Combobox'
 import { StorageService } from '@/lib/storage'
 import { Plus, Package, Star, MapPin, TrendingUp, Search } from 'lucide-react'
 import type { Product, ProductFilters, ProductSort } from '@/lib/types/product'
@@ -25,36 +27,44 @@ export default function ProductsPage() {
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([])
   const [viewMode, setViewMode] = useState<'all' | 'active' | 'inactive'>('all')
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all')
+  const [eventFilter, setEventFilter] = useState<string>('all')
   const [locationFilter, setLocationFilter] = useState<string>('all')
   const [sortField, setSortField] = useState<ProductSort['field']>('name')
   const [sortDirection, setSortDirection] = useState<ProductSort['direction']>('asc')
+  const [page, setPage] = useState(1)
   const [showCreateWizard, setShowCreateWizard] = useState(false)
 
   // Filters
   const filters: ProductFilters = useMemo(() => ({
     search: searchTerm || undefined,
     product_type_id: productTypeFilter && productTypeFilter !== 'all' ? productTypeFilter : undefined,
+    event_id: eventFilter && eventFilter !== 'all' ? eventFilter : undefined,
     is_active: viewMode === 'all' ? undefined : viewMode === 'active',
     location: locationFilter && locationFilter !== 'all' ? { city: locationFilter } : undefined
-  }), [searchTerm, productTypeFilter, viewMode, locationFilter])
+  }), [searchTerm, productTypeFilter, eventFilter, viewMode, locationFilter])
 
   const sort: ProductSort = useMemo(() => ({
     field: sortField,
     direction: sortDirection
   }), [sortField, sortDirection])
 
-  // Data fetching
-  const { data: products = [], isLoading, error } = useProducts(filters, sort)
+  // Data fetching with pagination
+  const { data: productsResponse, isLoading, error } = useProducts(filters, sort, page, 100)
   const { data: stats } = useProductStats()
   const { data: productTypes } = useProductTypes()
+  const { data: events = [] } = useEvents()
   const deleteProduct = useDeleteProduct()
   const createProduct = useCreateProduct()
   const updateProduct = useUpdateProduct()
 
-  // Filtered products based on view mode
+  const products = productsResponse?.data || []
+  const totalCount = productsResponse?.totalCount || 0
+  const totalPages = productsResponse?.totalPages || 1
+
+  // Filtered products based on view mode (already filtered server-side but apply view mode filter client-side if needed)
   const filteredProducts = useMemo(() => {
     if (viewMode === 'all') return products
-    return products.filter(product => 
+    return products.filter((product: Product) => 
       viewMode === 'active' ? product.is_active : !product.is_active
     )
   }, [products, viewMode])
@@ -167,12 +177,15 @@ export default function ProductsPage() {
       // Store images separately to avoid database issues with blob URLs
       const imagesToUpload = data.media || []
       
-      console.log('Creating product with full data:', data)
-      console.log('Product attributes:', data.attributes)
+      // Remove media from product data to prevent blob URLs from being saved
+      const { media, ...productData } = data
+      
+      console.log('Creating product with full data:', productData)
+      console.log('Product attributes:', productData.attributes)
       console.log('About to call createProduct.mutateAsync...')
       
       // Create product without media first to avoid blob URL issues
-      const product = await createProduct.mutateAsync(data)
+      const product = await createProduct.mutateAsync(productData)
       console.log('createProduct.mutateAsync completed successfully')
       console.log('Product created successfully:', product)
       
@@ -181,21 +194,43 @@ export default function ProductsPage() {
         try {
           console.log('Starting image upload process...')
           
-          // Extract File objects from the images
-          const filesToUpload = imagesToUpload
-            .filter(img => img.file) // Only images with file objects
-            .map(img => img.file!)
+          // Separate blob URLs from already-uploaded images
+          const imagesToProcess = imagesToUpload.filter((img: any) => img.url.startsWith('blob:'))
+          const alreadyUploadedImages = imagesToUpload.filter((img: any) => !img.url.startsWith('blob:'))
           
-          if (filesToUpload.length > 0) {
-            const uploadedImages = await StorageService.uploadImagesToStorage(
-              filesToUpload, 
-              product.id
-            )
+          console.log('Images to process:', imagesToProcess.length)
+          console.log('Already uploaded:', alreadyUploadedImages.length)
+          
+          if (imagesToProcess.length > 0) {
+                         // Convert blob URLs to files and upload
+             const uploadPromises = imagesToProcess.map(async (image: any) => {
+              try {
+                // Convert blob URL to file
+                const response = await fetch(image.url)
+                const blob = await response.blob()
+                const file = new File([blob], image.alt, { type: blob.type })
+                
+                return await StorageService.uploadImage(file, product.id, image.is_primary)
+              } catch (error) {
+                console.error(`Error uploading image ${image.alt}:`, error)
+                // Return original image if upload fails
+                return image
+              }
+            })
             
-            console.log('Images uploaded, updating product:', uploadedImages)
+            const newlyUploadedImages = await Promise.all(uploadPromises)
+            
+            // Combine all images
+            const allImages = [...alreadyUploadedImages, ...newlyUploadedImages]
+            
+            console.log('All images ready, updating product:', allImages)
             // Update product with uploaded image URLs
-            await updateProduct.mutateAsync({ id: product.id, data: { media: uploadedImages } })
+            await updateProduct.mutateAsync({ id: product.id, data: { media: allImages } })
             console.log('Product updated with images')
+          } else if (alreadyUploadedImages.length > 0) {
+            // All images are already uploaded, just update the product
+            await updateProduct.mutateAsync({ id: product.id, data: { media: alreadyUploadedImages } })
+            console.log('Product updated with existing images')
           }
         } catch (imageError) {
           console.error('Error uploading images:', imageError)
@@ -260,38 +295,45 @@ export default function ProductsPage() {
                   className="pl-8 w-64"
                 />
               </div>
-              <Select
-                value={productTypeFilter}
-                onValueChange={setProductTypeFilter}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  {productTypes?.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.type_name} ({type.type_code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={locationFilter}
-                onValueChange={setLocationFilter}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Locations" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Locations</SelectItem>
-                  {Array.from(new Set(products.map(p => p.location?.city).filter(Boolean))).map((city) => (
-                    <SelectItem key={city} value={city}>
-                      {city}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={[
+                  { value: 'all', label: 'All Types' },
+                  ...(productTypes?.map(type => ({
+                    value: type.id,
+                    label: `${type.type_name} (${type.type_code})`
+                  })) || [])
+                ]}
+                value={productTypeFilter === 'all' ? undefined : productTypeFilter}
+                onValueChange={(value) => setProductTypeFilter(value || 'all')}
+                placeholder="All Types"
+                className="w-[200px]"
+              />
+              <Combobox
+                options={[
+                  { value: 'all', label: 'All Events' },
+                  ...(events.map(event => ({
+                    value: event.id,
+                    label: `${event.event_name} - ${new Date(event.event_date_from).toLocaleDateString()}`
+                  })))
+                ]}
+                value={eventFilter === 'all' ? undefined : eventFilter}
+                onValueChange={(value) => setEventFilter(value || 'all')}
+                placeholder="All Events"
+                className="w-[250px]"
+              />
+              <Combobox
+                options={[
+                  { value: 'all', label: 'All Locations' },
+                  ...Array.from(new Set(products.map((p: Product) => p.location?.city).filter(Boolean))).map((city: string) => ({
+                    value: city as string,
+                    label: city as string
+                  }))
+                ]}
+                value={locationFilter === 'all' ? undefined : locationFilter}
+                onValueChange={(value) => setLocationFilter(value || 'all')}
+                placeholder="All Locations"
+                className="w-[200px]"
+              />
             </div>
           </div>
         </CardHeader>

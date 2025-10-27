@@ -289,7 +289,7 @@ function Step2BasicDetails({ data, onNext, onBack, ...props }: StepProps & {
   }, [data.productType, fetchProductSubtypes]);
   
   // Context-aware labels based on product type
-  const labels = {
+  const labelConfigs = {
     accommodation: {
       productName: 'Hotel or Property Name',
       placeholder: 'e.g., Grand Hotel Paris',
@@ -310,7 +310,9 @@ function Step2BasicDetails({ data, onNext, onBack, ...props }: StepProps & {
       placeholder: 'e.g., 7-Day Italy Highlights Tour',
       variant: 'Package Type'
     }
-  }[data.productType] || labels.accommodation;
+  } as const;
+  
+  const labels = data.productType ? labelConfigs[data.productType] || labelConfigs.accommodation : labelConfigs.accommodation;
   
   return (
     <Form {...form}>
@@ -618,7 +620,7 @@ function Step3Pricing({ data, onNext, onBack }: StepProps) {
                 </div>
                 <div className="w-24 text-xs text-muted-foreground">
                   {form.watch('occupancy.single') && price && (
-                    `-£${(parseFloat(price) - parseFloat(form.watch('occupancy.single'))).toFixed(0)}`
+                    `-£${(parseFloat(price) - parseFloat(form.watch('occupancy.single') || '0')).toFixed(0)}`
                   )}
                 </div>
               </div>
@@ -676,7 +678,7 @@ function Step3Pricing({ data, onNext, onBack }: StepProps) {
                   <Calculator className="h-4 w-4" />
                   <AlertDescription>
                     <strong>Example:</strong> 2 adults + 1 child = £{
-                      (parseFloat(price) + parseFloat(form.watch('occupancy.additional'))).toFixed(2)
+                      (parseFloat(price) + parseFloat(form.watch('occupancy.additional') || '0')).toFixed(2)
                     }/night
                   </AlertDescription>
                 </Alert>
@@ -895,7 +897,7 @@ function Step4Availability({ data, onNext, onBack }: StepProps) {
               type="button"
               onClick={() => {
                 setSelectedModel(model.id);
-                form.setValue('model', model.id);
+                form.setValue('model', model.id as 'fixed' | 'unlimited' | 'on-request');
               }}
               className={`
                 w-full p-4 rounded-lg border-2 text-left transition-all
@@ -1146,7 +1148,7 @@ function Step5Review({ data, onNext, onBack, isLastStep }: StepProps) {
   
   const dateCount = data.availability?.dateFrom && data.availability?.dateTo
     ? Math.ceil(
-        (new Date(data.availability.dateTo) - new Date(data.availability.dateFrom)) / 
+        (new Date(data.availability.dateTo).getTime() - new Date(data.availability.dateFrom).getTime()) / 
         (1000 * 60 * 60 * 24)
       )
     : 0;

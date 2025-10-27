@@ -9,7 +9,7 @@ export interface UploadedImage {
 }
 
 export class StorageService {
-  private static bucketName = 'product-images'
+  private static bucketName = 'product_images'
 
   // Upload a single image file
   static async uploadImage(

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { MoreHorizontal, Edit, Copy, Trash2, GripVertical, Plus } from 'lucide-react'
 import {
   DndContext,
@@ -46,17 +47,20 @@ interface OptionsTableProps {
 // Sortable Table Row Component
 function SortableTableRow({ 
   option, 
-  productType, 
+  productType,
+  productId,
   onEdit, 
   onDelete, 
   onDuplicate 
 }: {
   option: ProductOption
   productType: string
+  productId?: string
   onEdit: (option: ProductOption) => void
   onDelete: (option: ProductOption) => void
   onDuplicate: (option: ProductOption) => void
 }) {
+  const router = useRouter()
   const {
     attributes,
     listeners,
@@ -71,10 +75,37 @@ function SortableTableRow({
     transition,
   }
 
+  const handleRowClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on actions or drag handle
+    const target = e.target as HTMLElement
+    if (target.closest('button, [role="menuitem"]') || target.closest('[data-drag-handle]')) {
+      return
+    }
+    if (productId) {
+      router.push(`/products/${productId}/options/${option.id}`)
+    }
+  }
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onEdit(option)
+  }
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDelete(option)
+  }
+
+  const handleDuplicate = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDuplicate(option)
+  }
+
   return (
     <TableRow
       ref={setNodeRef}
       style={style}
+      onClick={handleRowClick}
       className={`hover:bg-primary/5 cursor-pointer ${
         isDragging ? 'shadow-lg ring-2 ring-primary/20 opacity-50' : ''
       }`}
@@ -82,6 +113,7 @@ function SortableTableRow({
       {/* Drag Handle */}
       <TableCell>
         <div 
+          data-drag-handle
           {...attributes}
           {...listeners}
           className="flex items-center justify-center p-1 hover:bg-muted rounded cursor-grab"
@@ -102,19 +134,45 @@ function SortableTableRow({
       {productType === 'accommodation' && (
         <>
           <TableCell>
-            <span className="text-sm">
-              {(option.attributes as any)?.bed_configuration || '—'}
-            </span>
+            <Badge variant="outline" className="capitalize">
+              {(option.attributes as any)?.room_type || '—'}
+            </Badge>
+          </TableCell>
+          <TableCell>
+            <div className="flex flex-col gap-1">
+              {(option.attributes as any)?.bed_configurations_available && 
+               (option.attributes as any).bed_configurations_available.length > 0 ? (
+                <>
+                  <div className="flex flex-wrap gap-1">
+                    {(option.attributes as any).bed_configurations_available.map((bed: string, idx: number) => (
+                      <Badge key={idx} variant="secondary" className="text-xs capitalize">
+                        {bed}
+                      </Badge>
+                    ))}
+                  </div>
+                  {(option.attributes as any)?.default_bed_configuration && (
+                    <span className="text-xs text-muted-foreground">
+                      Default: {(option.attributes as any).default_bed_configuration}
+                    </span>
+                  )}
+                </>
+              ) : (option.attributes as any)?.bed_configuration ? (
+                <Badge variant="secondary" className="text-xs capitalize">
+                  {(option.attributes as any).bed_configuration}
+                </Badge>
+              ) : (
+                <span className="text-sm">—</span>
+              )}
+            </div>
           </TableCell>
           <TableCell>
             <span className="text-sm">
-              {option.standard_occupancy}/{option.max_occupancy}
+              Std: {(option.attributes as any)?.standard_occupancy || '—'} / Max: {(option.attributes as any)?.max_occupancy || '—'}
             </span>
           </TableCell>
           <TableCell>
-            <span className="text-sm text-muted-foreground">
-              {(option.attributes as any)?.room_size_sqm && `${(option.attributes as any).room_size_sqm}m²`}
-              {(option.attributes as any)?.view_type && ` • ${(option.attributes as any).view_type}`}
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.view_type || '—'}
             </span>
           </TableCell>
         </>
@@ -123,18 +181,87 @@ function SortableTableRow({
       {productType === 'event' && (
         <>
           <TableCell>
+            <Badge variant="outline" className="capitalize">
+              {(option.attributes as any)?.ticket_type?.replace(/_/g, ' ') || '—'}
+            </Badge>
+          </TableCell>
+          <TableCell>
             <span className="text-sm capitalize">
-              {(option.attributes as any)?.ticket_type?.replace('_', ' ') || '—'}
+              {(option.attributes as any)?.seat_category || '—'}
             </span>
           </TableCell>
           <TableCell>
-            <span className="text-sm uppercase">
-              {(option.attributes as any)?.access_level || '—'}
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.age_category || '—'}
             </span>
           </TableCell>
+        </>
+      )}
+      
+      {productType === 'transfer' && (
+        <>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.vehicle_type || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            {(option.attributes as any)?.capacity ? (
+              <span className="text-sm">
+                {(option.attributes as any).capacity.passengers || '—'} pax, {(option.attributes as any).capacity.luggage_large || '—'}L
+              </span>
+            ) : (
+              <span className="text-sm">—</span>
+            )}
+          </TableCell>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.pricing_basis?.replace('_', ' ') || '—'}
+            </span>
+          </TableCell>
+        </>
+      )}
+      
+      {productType === 'transport' && (
+        <>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.service_class?.replace('_', ' ') || '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.ticket_flexibility?.replace('_', ' ') || '—'}
+            </span>
+          </TableCell>
+        </>
+      )}
+      
+      {productType === 'experience' && (
+        <>
           <TableCell>
             <span className="text-sm">
-              {(option.attributes as any)?.section || '—'}
+              {(option.attributes as any)?.duration_hours ? `${(option.attributes as any).duration_hours}h` : '—'}
+            </span>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.option_type?.replace('_', ' ') || '—'}
+            </span>
+          </TableCell>
+        </>
+      )}
+      
+      {productType === 'extra' && (
+        <>
+          <TableCell>
+            <Badge variant="outline" className="capitalize">
+              {(option.attributes as any)?.extra_type?.replace('_', ' ') || '—'}
+            </Badge>
+          </TableCell>
+          <TableCell>
+            <span className="text-sm capitalize">
+              {(option.attributes as any)?.access_type || '—'}
             </span>
           </TableCell>
         </>
@@ -161,17 +288,17 @@ function SortableTableRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(option)}>
+            <DropdownMenuItem onClick={handleEdit}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onDuplicate(option)}>
+            <DropdownMenuItem onClick={handleDuplicate}>
               <Copy className="h-4 w-4 mr-2" />
               Duplicate
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
-              onClick={() => onDelete(option)}
+              onClick={handleDelete}
               className="text-destructive"
             >
               <Trash2 className="h-4 w-4 mr-2" />
@@ -187,10 +314,11 @@ function SortableTableRow({
 interface OptionsTableProps {
   options: ProductOption[]
   productType: string
+  productId?: string
   onEdit: (option: ProductOption) => void
 }
 
-export function OptionsTable({ options, productType, onEdit }: OptionsTableProps) {
+export function OptionsTable({ options, productType, productId, onEdit }: OptionsTableProps) {
   const [deletingOption, setDeletingOption] = useState<ProductOption | null>(null)
   const updateOption = useUpdateProductOption()
   const deleteOption = useDeleteProductOption()
@@ -556,16 +684,42 @@ export function OptionsTable({ options, productType, onEdit }: OptionsTableProps
                    <TableHead>Option Name</TableHead>
                    {productType === 'accommodation' && (
                      <>
+                       <TableHead>Room Type</TableHead>
                        <TableHead>Bed Config</TableHead>
                        <TableHead>Occupancy</TableHead>
-                       <TableHead>Room Details</TableHead>
+                       <TableHead>View</TableHead>
                      </>
                    )}
                    {productType === 'event' && (
                      <>
                        <TableHead>Ticket Type</TableHead>
-                       <TableHead>Access Level</TableHead>
-                       <TableHead>Section</TableHead>
+                       <TableHead>Seat Category</TableHead>
+                       <TableHead>Age Category</TableHead>
+                     </>
+                   )}
+                   {productType === 'transfer' && (
+                     <>
+                       <TableHead>Vehicle Type</TableHead>
+                       <TableHead>Capacity</TableHead>
+                       <TableHead>Pricing</TableHead>
+                     </>
+                   )}
+                   {productType === 'transport' && (
+                     <>
+                       <TableHead>Service Class</TableHead>
+                       <TableHead>Flexibility</TableHead>
+                     </>
+                   )}
+                   {productType === 'experience' && (
+                     <>
+                       <TableHead>Duration</TableHead>
+                       <TableHead>Type</TableHead>
+                     </>
+                   )}
+                   {productType === 'extra' && (
+                     <>
+                       <TableHead>Extra Type</TableHead>
+                       <TableHead>Access</TableHead>
                      </>
                    )}
                    <TableHead>Status</TableHead>
@@ -578,6 +732,7 @@ export function OptionsTable({ options, productType, onEdit }: OptionsTableProps
                      key={option.id}
                      option={option}
                      productType={productType}
+                     productId={productId}
                      onEdit={onEdit}
                      onDelete={handleDelete}
                      onDuplicate={handleDuplicate}

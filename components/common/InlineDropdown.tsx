@@ -66,7 +66,7 @@ export function InlineDropdown({
   const selectedOption = options.find(option => option.value === value)
 
   return (
-    <div className={cn("flex items-center space-x-2", className)}>
+    <div className={cn("flex items-center space-x-2 border border-border rounded-md p-1 -m-1 transition-colors", className)}>
       <Select
         value={value}
         onValueChange={handleValueChange}
@@ -74,7 +74,7 @@ export function InlineDropdown({
         
       >
         <SelectTrigger className={cn(
-          "w-full py-0",
+          "w-full py-0 border-0 shadow-none",
           triggerClassName,
           (loading || isSaving) && "opacity-50 cursor-not-allowed"
         )}>

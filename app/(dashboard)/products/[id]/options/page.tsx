@@ -51,6 +51,7 @@ export default function ProductOptionsPage() {
       <OptionsTable
         options={options || []}
         productType={product.product_type?.type_name?.toLowerCase() || 'accommodation'}
+        productId={productId}
         onEdit={setEditingOption}
       />
       

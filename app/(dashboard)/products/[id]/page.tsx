@@ -52,10 +52,12 @@ import {
 } from '@/components/products/ProductAttributeInlineEdit'
 import { ProductTagsEdit } from '@/components/products/ProductTagsEdit'
 import { ProductImagesInlineEdit } from '@/components/products/ProductImagesInlineEdit'
+import { ProductAttributesDisplay } from '@/components/products/ProductAttributesDisplay'
 // import { ProductOptionDialog } from '@/components/products/ProductOptionDialog' // REMOVED - Using type-specific forms
 import { OptionsTable } from '@/components/product-options/OptionsTable'
 import { AccommodationOptionForm } from '@/components/product-options/AccommodationOptionForm'
 import { EventOptionForm } from '@/components/product-options/EventOptionForm'
+import { ProductOptionSellingRateForm } from '@/components/products/product-option-selling-rate-form'
 import { 
   ACCOMMODATION_PROPERTY_TYPES,
   ACCOMMODATION_AMENITIES,
@@ -152,70 +154,178 @@ export default function ProductDetailsPage() {
     ]
   }, [options, product])
 
-  // Define DataTable columns for product options - always define before returns
-  const optionColumns: DataTableColumn<ProductOption>[] = useMemo(() => [
-    {
-      key: 'image',
-      header: 'Image',
-      width: 'w-[80px]',
-      render: (item) => {
-        const images = (item.attributes as any)?.images || []
-        const primaryImage = images.find((img: any) => img.is_primary) || images[0]
-        
-        return primaryImage ? (
-          <div className="w-14 h-14 rounded overflow-hidden bg-muted">
-            <img 
-              src={primaryImage.url} 
-              alt={primaryImage.alt || 'Option'} 
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ) : (
-          <div className="w-14 h-14 rounded bg-muted flex items-center justify-center">
-            <Package className="h-5 w-5 text-muted-foreground" />
+  // Define DataTable columns for product options based on product type
+  const optionColumns: DataTableColumn<ProductOption>[] = useMemo(() => {
+    const isAccommodation = product?.product_type?.type_code === 'accommodation'
+    const isEvent = product?.product_type?.type_code === 'event'
+    const isTransfer = product?.product_type?.type_code === 'transfer'
+    
+    const baseColumns: DataTableColumn<ProductOption>[] = [
+      {
+        key: 'option_name',
+        header: 'Option Name',
+        width: 'w-[200px]',
+        render: (item) => (
+          <div className="flex flex-col">
+            <span className="font-medium">{item.option_name}</span>
+            <span className="text-xs text-muted-foreground font-mono">{item.option_code}</span>
           </div>
         )
+      },
+      {
+        key: 'description',
+        header: 'Description',
+        width: 'w-[250px]',
+        render: (item) => (
+          <span className="text-sm line-clamp-2">{item.description || '—'}</span>
+        )
       }
-    },
-    {
-      key: 'option_name',
-      header: 'Option Name',
-      width: 'w-[250px]',
-      render: (item) => (
-        <div className="flex flex-col">
-          <span className="font-medium">{item.option_name}</span>
-          <span className="text-xs text-muted-foreground">{item.option_code}</span>
-      </div>
-    )
-    },
-    {
-      key: 'description',
-      header: 'Description',
-      render: (item) => (
-        <span className="text-sm line-clamp-2">{item.description || '—'}</span>
+    ]
+
+    // Accommodation-specific columns
+    if (isAccommodation) {
+      baseColumns.push(
+        {
+          key: 'room_type',
+          header: 'Room Type',
+          width: 'w-[120px]',
+          render: (item) => (
+            <Badge variant="outline" className="capitalize">
+              {(item.attributes as any)?.room_type || '—'}
+            </Badge>
+          )
+        },
+        {
+          key: 'bed_config',
+          header: 'Bed Config',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.bed_configuration || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'occupancy',
+          header: 'Occupancy',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm">
+              Std: {(item.attributes as any)?.standard_occupancy || '—'} / Max: {(item.attributes as any)?.max_occupancy || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'view_type',
+          header: 'View',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.view_type || '—'}
+            </span>
+          )
+        }
       )
-    },
-    // NOTE: Pricing columns removed - pricing is now managed through supplier_rates and selling_rates
-    // TODO: Add columns to display rates from supplier_rates and selling_rates tables
-    {
-      key: 'is_active',
-      header: 'Status',
-      width: 'w-[100px]',
-      render: (item) => (
-        <div className="flex justify-center">
-          {item.is_active ? (
-            <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>
-          ) : (
-            <Badge variant="secondary">Inactive</Badge>
-          )}
-        </div>
+    }
+
+    // Event-specific columns
+    if (isEvent) {
+      baseColumns.push(
+        {
+          key: 'ticket_type',
+          header: 'Ticket Type',
+          width: 'w-[120px]',
+          render: (item) => (
+            <Badge variant="outline" className="capitalize">
+              {(item.attributes as any)?.ticket_type?.replace(/_/g, ' ') || '—'}
+            </Badge>
+          )
+        },
+        {
+          key: 'seat_category',
+          header: 'Seat Category',
+          width: 'w-[120px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.seat_category || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'age_category',
+          header: 'Age Category',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.age_category || '—'}
+            </span>
+          )
+        }
       )
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      width: 'w-[100px]',
-      render: (item) => (
+    }
+
+    // Transfer-specific columns
+    if (isTransfer) {
+      baseColumns.push(
+        {
+          key: 'vehicle_type',
+          header: 'Vehicle Type',
+          width: 'w-[150px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.vehicle_type || '—'}
+            </span>
+          )
+        },
+        {
+          key: 'capacity',
+          header: 'Capacity',
+          width: 'w-[100px]',
+          render: (item) => {
+            const capacity = (item.attributes as any)?.capacity
+            return capacity ? (
+              <span className="text-sm">
+                {capacity.passengers || '—'} pax, {capacity.luggage_large || '—'}L + {capacity.luggage_small || '—'}S
+              </span>
+            ) : (
+              <span className="text-sm">—</span>
+            )
+          }
+        },
+        {
+          key: 'pricing_basis',
+          header: 'Pricing',
+          width: 'w-[100px]',
+          render: (item) => (
+            <span className="text-sm capitalize">
+              {(item.attributes as any)?.pricing_basis?.replace('_', ' ') || '—'}
+            </span>
+          )
+        }
+      )
+    }
+
+    // Common columns
+    baseColumns.push(
+      {
+        key: 'is_active',
+        header: 'Status',
+        width: 'w-[100px]',
+        render: (item) => (
+          <div className="flex justify-center">
+            {item.is_active ? (
+              <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>
+            ) : (
+              <Badge variant="secondary">Inactive</Badge>
+            )}
+          </div>
+        )
+      },
+      {
+        key: 'actions',
+        header: 'Actions',
+        width: 'w-[100px]',
+        render: (item) => (
         <div className="flex justify-end gap-1">
           <Button 
             variant="ghost" 
@@ -239,8 +349,11 @@ export default function ProductDetailsPage() {
           </Button>
         </div>
       )
-    }
-  ], [])
+      }
+    )
+    
+    return baseColumns
+  }, [product])
 
   const handleDeleteProduct = async () => {
     try {
@@ -372,7 +485,7 @@ export default function ProductDetailsPage() {
                 <div className="text-muted-foreground">
                   <div className="text-4xl mb-2">📊</div>
                   <h3 className="text-lg font-medium">Product Overview</h3>
-                  <p className="text-sm">General product information and details</p>
+                  <p className="text-sm">All product details are shown in the sidebar on the right</p>
                 </div>
               </div>
             </TabsContent>
@@ -398,6 +511,7 @@ export default function ProductDetailsPage() {
                 <OptionsTable
                   options={options as any}
                   productType={product.product_type?.type_name?.toLowerCase() || 'accommodation'}
+                  productId={productId}
                   onEdit={(option) => setEditingOption(option as any)}
                   />
                 </div>
@@ -656,14 +770,34 @@ export default function ProductDetailsPage() {
                           {(product_type?.type_name?.toLowerCase() === 'event' || product_type?.type_name?.toLowerCase().includes('ticket')) && (
                             <>
                               <DetailRow
-                                label="Event Name"
+                                label="Ticket Category"
+                                value={
+                                  <ProductAttributeSelect
+                                    product={product}
+                                    attributeField="ticket_category"
+                                    label="Ticket Category"
+                                    options={[
+                                      { value: 'grandstand', label: 'Grandstand' },
+                                      { value: 'general_admission', label: 'General Admission' },
+                                      { value: 'paddock_club', label: 'Paddock Club' },
+                                      { value: 'vip', label: 'VIP' }
+                                    ]}
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Venue Section"
                                 value={
                                   <ProductAttributeEdit
                                     product={product}
                                     field="attributes"
-                                    nestedField="event_name"
-                                    label="Event Name"
-                                    placeholder="Enter event name"
+                                    nestedField="venue_section"
+                                    label="Venue Section"
+                                    placeholder="e.g., Grandstand K"
                                     className="text-sm"
                                     emptyValue="Not set"
                                     size="sm"
@@ -674,13 +808,16 @@ export default function ProductDetailsPage() {
                               />
                               
                               <DetailRow
-                                label="Category"
+                                label="Seating Type"
                                 value={
                                   <ProductAttributeSelect
                                     product={product}
-                                    attributeField="event_category"
-                                    label="Event Category"
-                                    options={EVENT_CATEGORIES}
+                                    attributeField="seating_type"
+                                    label="Seating Type"
+                                    options={[
+                                      { value: 'reserved', label: 'Reserved' },
+                                      { value: 'unreserved', label: 'Unreserved' }
+                                    ]}
                                     emptyValue="Not set"
                                     size="sm"
                                   />
@@ -689,13 +826,17 @@ export default function ProductDetailsPage() {
                               />
                               
                               <DetailRow
-                                label="Event Status"
+                                label="Delivery Method"
                                 value={
                                   <ProductAttributeSelect
                                     product={product}
-                                    attributeField="event_status"
-                                    label="Event Status"
-                                    options={EVENT_STATUSES}
+                                    attributeField="delivery_method"
+                                    label="Delivery Method"
+                                    options={[
+                                      { value: 'collection_on_site', label: 'Collection on Site' },
+                                      { value: 'postal', label: 'Postal' },
+                                      { value: 'e_ticket', label: 'E-Ticket' }
+                                    ]}
                                     emptyValue="Not set"
                                     size="sm"
                                   />
@@ -760,20 +901,51 @@ export default function ProductDetailsPage() {
 
                           {/* Transfer Attributes */}
                           {(product_type?.type_name?.toLowerCase() === 'transfer' || product_type?.type_name?.toLowerCase().includes('transfer')) && (
-                            <DetailRow
-                              label="Transfer Type"
-                              value={
-                                <ProductAttributeSelect
-                                  product={product}
-                                  attributeField="transfer_type"
-                                  label="Transfer Type"
-                                  options={TRANSFER_TYPES}
-                                  emptyValue="Not set"
-                                  size="sm"
-                                />
-                              }
-                              variant="compact"
-                            />
+                            <>
+                              <DetailRow
+                                label="Transfer Type"
+                                value={
+                                  <ProductAttributeSelect
+                                    product={product}
+                                    attributeField="transfer_type"
+                                    label="Transfer Type"
+                                    options={TRANSFER_TYPES}
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Service Level"
+                                value={
+                                  <ProductAttributeSelect
+                                    product={product}
+                                    attributeField="service_level"
+                                    label="Service Level"
+                                    options={[
+                                      { value: 'private', label: 'Private' },
+                                      { value: 'shared', label: 'Shared' },
+                                      { value: 'shuttle', label: 'Shuttle' }
+                                    ]}
+                                    emptyValue="Not set"
+                                    size="sm"
+                                  />
+                                }
+                                variant="compact"
+                              />
+                              
+                              <DetailRow
+                                label="Route"
+                                value={
+                                  <div className="text-sm">
+                                    {attributes.route?.from || 'Not set'} → {attributes.route?.to || 'Not set'}
+                                  </div>
+                                }
+                                variant="compact"
+                              />
+                            </>
                 )}
                       </div>
                   </>
@@ -807,11 +979,9 @@ export default function ProductDetailsPage() {
         variant="destructive"
       />
 
-      {/* Add Product Option Dialog - REMOVED - Using type-specific forms instead */}
-
-      {/* Type-specific option forms */}
-      {product.product_type?.type_name?.toLowerCase() === 'accommodation' && (
-        <AccommodationOptionForm
+      {/* Product Option & Selling Rate Form - Unified form for all product types */}
+      {product && (
+        <ProductOptionSellingRateForm
           open={showAddOptionDialog || !!editingOption}
           onOpenChange={(open) => {
             if (!open) {
@@ -819,22 +989,12 @@ export default function ProductDetailsPage() {
               setEditingOption(null)
             }
           }}
-          productId={productId}
-          option={editingOption as any}
-        />
-      )}
-      
-      {product.product_type?.type_name?.toLowerCase() === 'event' && (
-        <EventOptionForm
-          open={showAddOptionDialog || !!editingOption}
-          onOpenChange={(open) => {
-            if (!open) {
-              setShowAddOptionDialog(false)
-              setEditingOption(null)
-            }
+          product={product}
+          option={editingOption}
+          onSuccess={() => {
+            setShowAddOptionDialog(false)
+            setEditingOption(null)
           }}
-          productId={productId}
-          option={editingOption as any}
         />
       )}
     </div>

@@ -1,21 +1,38 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Product, ProductType, ProductOption, SellingRate, ProductFilters, ProductSort } from '@/lib/types/product'
 
-// Get all products for an organization
-export async function getProducts(organizationId: string, filters?: ProductFilters, sort?: ProductSort) {
+// Get all products for an organization with pagination
+export async function getProducts(
+  organizationId: string, 
+  filters?: ProductFilters, 
+  sort?: ProductSort,
+  page: number = 1,
+  pageSize: number = 100
+) {
   const supabase = createClient()
   
   let query = supabase
     .from('products')
     .select(`
       *,
-      product_type:product_types(*)
+      product_type:product_types(*),
+      event:events(event_name, event_code)
     `)
     .eq('organization_id', organizationId)
   
   // Apply filters
   if (filters?.search) {
-    query = query.or(`name.ilike.%${filters.search}%,code.ilike.%${filters.search}%,description.ilike.%${filters.search}%`)
+    // Include event search in general search
+    query = query.or(
+      `name.ilike.%${filters.search}%,` +
+      `code.ilike.%${filters.search}%,` +
+      `description.ilike.%${filters.search}%,` +
+      `event.event_name.ilike.%${filters.search}%`
+    )
+  }
+  
+  if (filters?.event_id) {
+    query = query.eq('event_id', filters.event_id)
   }
   
   if (filters?.product_type_id) {
@@ -45,10 +62,51 @@ export async function getProducts(organizationId: string, filters?: ProductFilte
     query = query.order('name')
   }
   
-  const { data, error } = await query
+  // Apply pagination
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  query = query.range(from, to)
+  
+  const { data, error, count } = await query
   
   if (error) throw error
-  return data as Product[]
+  
+  // Get total count for pagination
+  let countQuery = supabase
+    .from('products')
+    .select('*', { count: 'exact', head: true })
+    .eq('organization_id', organizationId)
+  
+  if (filters?.search) {
+    countQuery = countQuery.or(
+      `name.ilike.%${filters.search}%,` +
+      `code.ilike.%${filters.search}%,` +
+      `description.ilike.%${filters.search}%,` +
+      `event.event_name.ilike.%${filters.search}%`
+    )
+  }
+  
+  if (filters?.event_id) {
+    countQuery = countQuery.eq('event_id', filters.event_id)
+  }
+  
+  if (filters?.product_type_id) {
+    countQuery = countQuery.eq('product_type_id', filters.product_type_id)
+  }
+  
+  if (filters?.is_active !== undefined) {
+    countQuery = countQuery.eq('is_active', filters.is_active)
+  }
+  
+  const { count: totalCount } = await countQuery
+  
+  return {
+    data: data as Product[],
+    totalCount: totalCount || 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((totalCount || 0) / pageSize)
+  }
 }
 
 // Get single product by ID
@@ -70,20 +128,32 @@ export async function getProduct(id: string) {
 
 // Create new product
 export async function createProduct(product: Partial<Product>) {
+  console.log('createProduct called with:', product)
   const supabase = createClient()
+  
+  const insertData = {
+    ...product,
+    media: [], // Start with empty media - will be uploaded separately
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+  
+  console.log('Inserting product with data:', insertData)
   
   const { data, error } = await supabase
     .from('products')
-    .insert({
-      ...product,
-      media: [], // Start with empty media - will be uploaded separately
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
+    .insert(insertData)
     .select()
     .single()
   
-  if (error) throw error
+  console.log('Supabase response:', { data, error })
+  
+  if (error) {
+    console.error('Supabase error:', error)
+    throw error
+  }
+  
+  console.log('Product created successfully:', data)
   return data as Product
 }
 
@@ -160,7 +230,7 @@ export async function getProductOptions(productId: string) {
     .from('product_options')
     .select('*')
     .eq('product_id', productId)
-    .order('sort_order')
+    .order('created_at')
   
   if (error) throw error
   return data as ProductOption[]

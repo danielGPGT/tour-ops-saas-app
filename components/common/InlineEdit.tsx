@@ -141,7 +141,7 @@ export function InlineEdit({
   return (
     <div 
       className={cn(
-        "group flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md p-1 -m-1 transition-colors",
+        "group flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md p-1 -m-1 transition-colors border border-border",
         disabled && "cursor-not-allowed opacity-50",
         className
       )}

@@ -83,44 +83,63 @@ export function useWizardData() {
   const getDefaultProductTypes = () => [
     {
       id: 'accommodation',
-      title: 'Hotel / Accommodation',
-      description: 'Hotels, hostels, apartments, vacation rentals',
-      icon: 'Building2',
+      title: 'Accommodation',
+      description: 'Hotels, apartments, villas, and lodging. Complex pricing with occupancy variations, contracted allocations, and inventory management.',
+      icon: 'bed',
       popular: true,
-      examples: 'Standard Room, Deluxe Suite, Apartment',
+      examples: 'Standard Room, Deluxe Suite, Villa',
       active: true,
       sort_order: 1
     },
     {
-      id: 'activity',
-      title: 'Activity / Experience', 
-      description: 'Tours, excursions, attractions, events',
-      icon: 'Ticket',
+      id: 'event',
+      title: 'Event Tickets',
+      description: 'Race tickets, grandstand seats, paddock passes. Simple per-unit pricing with batch inventory allocations.',
+      icon: 'ticket',
       popular: true,
-      examples: 'City Tour, Museum Ticket, Cooking Class',
+      examples: 'Grandstand K, Paddock Club, VIP',
       active: true,
       sort_order: 2
     },
     {
       id: 'transfer',
-      title: 'Transfer / Transport',
-      description: 'Airport transfers, shuttles, private cars',
-      icon: 'Car',
-      popular: false,
-      examples: 'Airport Shuttle, Private Transfer, Coach',
+      title: 'Transfers',
+      description: 'Airport transfers, circuit shuttles, ground transport. On-request products with no inventory, priced per booking or per vehicle.',
+      icon: 'car',
+      popular: true,
+      examples: 'Airport Transfer, Private Car, Shared Shuttle',
       active: true,
       sort_order: 3
     },
     {
-      id: 'package',
-      title: 'Multi-Day Package',
-      description: 'Complete tours with accommodation, activities, transfers',
-      icon: 'Package',
+      id: 'transport',
+      title: 'Transport',
+      description: 'Flights, trains, ferries. Dynamic products with generic catalog entries and specific details in transport_segments. Quoted per customer, no inventory.',
+      icon: 'plane',
       popular: false,
-      badge: 'Advanced',
-      examples: '7-Day Italy Tour, Weekend Getaway',
+      examples: 'Flight Package, Train Ticket, Ferry',
       active: true,
       sort_order: 4
+    },
+    {
+      id: 'experience',
+      title: 'Experiences',
+      description: 'Tours, activities, yacht charters, helicopter rides. On-request products, typically priced per booking or per person, no inventory.',
+      icon: 'compass',
+      popular: true,
+      examples: 'Yacht Tour, Helicopter Flight, Wine Tasting',
+      active: true,
+      sort_order: 5
+    },
+    {
+      id: 'extra',
+      title: 'Extras',
+      description: 'Supplementary items and add-ons like lounge access, insurance, parking, merchandise. Simple products, typically on-request, high margins.',
+      icon: 'package',
+      popular: false,
+      examples: 'Lounge Access, Insurance, Parking',
+      active: true,
+      sort_order: 6
     }
   ];
 
