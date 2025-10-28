@@ -9,10 +9,13 @@ import { TableSkeleton } from "./LoadingSkeleton";
 import { format } from "date-fns";
 
 export interface DataTableColumn<T> {
-  key: keyof T | string;
-  header: string;
+  key?: keyof T | string;
+  id?: string;
+  accessorKey?: string;
+  header: string | ((props: any) => React.ReactNode);
   width?: string;
   render?: (item: T, value: any) => React.ReactNode;
+  cell?: (props: { row: { original: T }; getValue?: () => any }) => React.ReactNode;
   sortable?: boolean;
 }
 
@@ -64,13 +67,28 @@ export function DataTable<T>({
   };
 
   const renderCellContent = (item: T, column: DataTableColumn<T>) => {
-    const value = typeof column.key === 'string' ? (item as any)[column.key] : item[column.key];
+    // Handle TanStack Table cell renderer
+    if (column.cell) {
+      return column.cell({ 
+        row: { original: item },
+        getValue: () => {
+          const key = column.accessorKey || column.key;
+          return key ? (item as any)[key] : item;
+        }
+      });
+    }
     
+    // Handle custom render function
     if (column.render) {
+      const key = column.accessorKey || column.key;
+      const value = key ? (item as any)[key] : item;
       return column.render(item, value);
     }
     
-    // Default rendering
+    // Default rendering - extract value
+    const key = column.accessorKey || column.key;
+    const value = key ? (item as any)[key] : item;
+    
     if (value instanceof Date) {
       return (
         <Tooltip>
@@ -149,12 +167,13 @@ export function DataTable<T>({
             {columns.map((column, index) => {
               // Determine alignment based on column width or content
               const headerText = column.header || '';
-              const isActionsColumn = headerText.toLowerCase().includes('actions');
-              const isNumericColumn = headerText.toLowerCase().includes('created') || 
-                                    headerText.toLowerCase().includes('updated') ||
-                                    headerText.toLowerCase().includes('date') ||
-                                    headerText.toLowerCase().includes('status') ||
-                                    headerText.toLowerCase().includes('variants');
+              const headerString = typeof headerText === 'string' ? headerText.toLowerCase() : '';
+              const isActionsColumn = headerString.includes('actions');
+              const isNumericColumn = headerString.includes('created') || 
+                                    headerString.includes('updated') ||
+                                    headerString.includes('date') ||
+                                    headerString.includes('status') ||
+                                    headerString.includes('variants');
               
               const alignmentClass = isActionsColumn 
                 ? "text-right" 
@@ -162,12 +181,23 @@ export function DataTable<T>({
                 ? "text-center" 
                 : "text-left";
               
+              // Render header content - handle both string and function headers
+              const headerContent = typeof column.header === 'function' 
+                ? column.header({
+                    table: {
+                      getIsAllPageRowsSelected: () => selectedIds.size === data.length && data.length > 0,
+                      getIsSomePageRowsSelected: () => selectedIds.size > 0 && selectedIds.size < data.length,
+                      toggleAllPageRowsSelected: handleSelectAll
+                    }
+                  })
+                : column.header;
+
               return (
                 <TableHead 
                   key={index} 
                   className={`${column.width || ""} ${alignmentClass}`}
                 >
-                  {column.header}
+                  {headerContent}
                 </TableHead>
               );
             })}
@@ -190,12 +220,13 @@ export function DataTable<T>({
               {columns.map((column, index) => {
                 // Match alignment with header
                 const headerText = column.header || '';
-                const isActionsColumn = headerText.toLowerCase().includes('actions');
-                const isNumericColumn = headerText.toLowerCase().includes('created') || 
-                                      headerText.toLowerCase().includes('updated') ||
-                                      headerText.toLowerCase().includes('date') ||
-                                      headerText.toLowerCase().includes('status') ||
-                                      headerText.toLowerCase().includes('variants');
+                const headerString = typeof headerText === 'string' ? headerText.toLowerCase() : '';
+                const isActionsColumn = headerString.includes('actions');
+                const isNumericColumn = headerString.includes('created') || 
+                                      headerString.includes('updated') ||
+                                      headerString.includes('date') ||
+                                      headerString.includes('status') ||
+                                      headerString.includes('variants');
                 
                 const alignmentClass = isActionsColumn 
                   ? "text-right" 

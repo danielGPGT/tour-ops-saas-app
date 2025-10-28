@@ -150,7 +150,13 @@ export async function createProduct(product: Partial<Product>) {
   
   if (error) {
     console.error('Supabase error:', error)
-    throw error
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    })
+    throw new Error(`Failed to create product: ${error.message || 'Unknown error'}`)
   }
   
   console.log('Product created successfully:', data)

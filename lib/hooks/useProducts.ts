@@ -57,6 +57,8 @@ export function useCreateProduct() {
     },
     onError: (error: any) => {
       console.error('Error creating product:', error)
+      console.error('Error message:', error?.message || 'Unknown error')
+      console.error('Error stack:', error?.stack)
     }
   })
 }

@@ -22,12 +22,17 @@ import {
 import { cn } from "@/lib/utils";
 import { ProductCreationWizard } from "@/components/products/ProductCreationWizard";
 import { ImportWizard } from "@/components/import/ImportWizard";
+import { ReleaseWarningsWidget } from "./ReleaseWarningsWidget";
+import { KeyMetricsCards } from "./KeyMetricsCards";
+import { UpcomingEventsWidget } from "./UpcomingEventsWidget";
+import { RecentActivityWidget } from "./RecentActivityWidget";
+import { AuthDebugWidget } from "../debug/AuthDebugWidget";
 
 interface DashboardProps {
-  orgId: number;
+  organizationId: string;
 }
 
-export function SimplifiedDashboard({ orgId }: DashboardProps) {
+export function SimplifiedDashboard({ organizationId }: DashboardProps) {
   const [showProductWizard, setShowProductWizard] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
@@ -327,42 +332,63 @@ export function SimplifiedDashboard({ orgId }: DashboardProps) {
         </p>
       </div>
 
-      {/* Quick Actions - Most prominent */}
-      {renderQuickActions()}
+      {/* DEBUG INFO - TEMPORARY */}
+      <AuthDebugWidget />
 
-      {/* Today's Summary */}
-      {renderTodaySummary()}
+      {/* KEY METRICS - Enterprise Dashboard Style */}
+      <KeyMetricsCards />
 
-      {/* Alerts - Important but not overwhelming */}
-      {renderAlerts()}
+      {/* URGENT ALERTS - Release Warnings */}
+      <ReleaseWarningsWidget />
 
-      {/* Today's Schedule */}
-      {renderUpcoming()}
+      {/* Two Column Layout for Events and Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* UPCOMING EVENTS */}
+        <UpcomingEventsWidget />
 
-      {/* Advanced Settings - Collapsed by default */}
-      {renderAdvancedSettings()}
+        {/* RECENT ACTIVITY */}
+        <RecentActivityWidget />
+      </div>
 
-      {/* Recent Activity (collapsed by default) */}
+      {/* Quick Actions - Still available but less prominent */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Recent Activity</CardTitle>
-              <CardDescription>Latest bookings and changes</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm">
-              View All
-            </Button>
-          </div>
+          <CardTitle className="text-lg">Quick Actions</CardTitle>
+          <CardDescription>Get started with common tasks</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Recent activity will appear here</p>
-            <p className="text-sm">Start by creating your first booking or product</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <Button
+                  key={action.id}
+                  variant="outline"
+                  className="p-4 h-auto flex flex-col items-center gap-2 hover:shadow-md transition-all"
+                  onClick={() => {
+                    if (action.id === "create-product") {
+                      setShowProductWizard(true);
+                    } else if (action.id === "import-data") {
+                      setShowImportWizard(true);
+                    }
+                  }}
+                >
+                  <div className={cn("p-2 rounded-lg", action.color)}>
+                    <Icon className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-center">
+                    <div className="font-medium text-sm">{action.title}</div>
+                    <div className="text-xs text-muted-foreground">{action.description}</div>
+                  </div>
+                </Button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
+
+      {/* Advanced Settings - Collapsed by default */}
+      {renderAdvancedSettings()}
     </div>
   );
 }

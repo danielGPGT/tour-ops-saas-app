@@ -4,8 +4,8 @@ import React from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useContract, useUpdateContract, useDeleteContract } from '@/lib/hooks/useContracts'
 import { useSuppliers } from '@/lib/hooks/useSuppliers'
-import { ContractAllocationsSection } from '@/components/contracts/contract-allocations-section'
-import { SupplierRatesSection } from '@/components/contracts/supplier-rates-section'
+import { ContractAllocationsTab } from '@/components/contracts/allocations/ContractAllocationsTab'
+import { ContractSupplierRatesTab } from '@/components/contracts/rates/ContractSupplierRatesTab'
 import { PageHeader } from '@/components/common/PageHeader'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { InfoCard } from '@/components/common/InfoCard'
@@ -465,12 +465,12 @@ export default function ContractDetailsPage() {
 
         {/* Allocations Tab */}
         <TabsContent value="allocations" className="space-y-6">
-          <ContractAllocationsSection contractId={contract.id} />
+          <ContractAllocationsTab contractId={contract.id} />
         </TabsContent>
 
         {/* Rates Tab */}
         <TabsContent value="rates" className="space-y-6">
-          <SupplierRatesSection contractId={contract.id} organizationId={contract.organization_id} />
+          <ContractSupplierRatesTab contractId={contract.id} contract={contract} />
         </TabsContent>
       </Tabs>
 

@@ -5,8 +5,16 @@ import { DataTable } from '@/components/common/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { 
-  Edit, 
+  MoreHorizontal,
+  Copy,
   Trash2, 
   Eye, 
   MapPin, 
@@ -16,7 +24,9 @@ import {
   Car,
   Ticket,
   Package,
-  Tag
+  Tag,
+  CheckCircle,
+  XCircle
 } from 'lucide-react'
 import { format } from 'date-fns'
 import type { Product } from '@/lib/types/product'
@@ -26,11 +36,22 @@ interface ProductListProps {
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
   onView: (product: Product) => void
+  onDuplicate?: (product: Product) => void
+  onToggleStatus?: (product: Product) => void
   onRowClick?: (product: Product) => void
   isLoading?: boolean
 }
 
-export function ProductList({ products, onEdit, onDelete, onView, onRowClick, isLoading }: ProductListProps) {
+export function ProductList({ 
+  products, 
+  onEdit, 
+  onDelete, 
+  onView, 
+  onDuplicate,
+  onToggleStatus,
+  onRowClick, 
+  isLoading 
+}: ProductListProps) {
   const getProductTypeIcon = (typeName: string) => {
     switch (typeName?.toLowerCase()) {
       case 'hotel':
@@ -229,29 +250,62 @@ export function ProductList({ products, onEdit, onDelete, onView, onRowClick, is
       key: 'actions',
       header: 'Actions',
       render: (product: Product) => (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onView(product)}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onEdit(product)}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onDelete(product)}
-            className="text-red-600 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Open menu</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[160px]">
+              <DropdownMenuItem onClick={(e) => {
+                e.stopPropagation();
+                onView(product);
+              }}>
+                <Eye className="mr-2 h-4 w-4" />
+                View details
+              </DropdownMenuItem>
+              {onDuplicate && (
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  onDuplicate(product);
+                }}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  Duplicate
+                </DropdownMenuItem>
+              )}
+              {onToggleStatus && (
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleStatus(product);
+                }}>
+                  {product.is_active ? (
+                    <>
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Set inactive
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Set active
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(product);
+                }}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )
     }
@@ -269,15 +323,16 @@ export function ProductList({ products, onEdit, onDelete, onView, onRowClick, is
   }
 
   return (
-
-        <DataTable
-          columns={columns}
-          data={products}
-          emptyState={{
-            icon: <Package className="h-8 w-8" />,
-            title: "No products found",
-            description: "Create your first product to get started"
-          }}
-        />
+    <DataTable
+      columns={columns}
+      data={products}
+      onRowClick={onRowClick}
+      getId={(product) => product.id}
+      emptyState={{
+        icon: <Package className="h-8 w-8" />,
+        title: "No products found",
+        description: "Create your first product to get started"
+      }}
+    />
   )
 }

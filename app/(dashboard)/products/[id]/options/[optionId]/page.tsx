@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { InlineDropdown } from '@/components/common/InlineDropdown'
 import { ProductOptionImagesInlineEdit } from '@/components/products/ProductOptionImagesInlineEdit'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ProductOptionSellingRatesManager } from '@/components/products/ProductOptionSellingRatesManager'
+import { ProductSellingRatesManager } from '@/components/products/rates/ProductSellingRatesManager'
 import { useProductOption, useUpdateProductOption } from '@/lib/hooks/useProductOptions'
 import { useProduct } from '@/lib/hooks/useProducts'
 import { formatDate } from '@/lib/utils/formatting'
@@ -158,7 +158,7 @@ export default function ProductOptionDetailsPage() {
               </p>
               {product && (
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Part of: <a href={`/products/${product.id}`} className="text-primary hover:underline">{product.name}</a>
+                  Part of: <a href={`/products/${product.id}?tab=options`} className="text-primary hover:underline">{product.name}</a>
                 </p>
               )}
              </div>
@@ -183,8 +183,8 @@ export default function ProductOptionDetailsPage() {
           </div>
         }
         backButton={{
-          onClick: () => router.push(`/products/${productId}/options`),
-          label: 'Back to Options'
+          onClick: () => router.push(`/products/${productId}?tab=options`),
+          label: 'Back to Product'
         }}
       />
 
@@ -780,11 +780,9 @@ export default function ProductOptionDetailsPage() {
         {/* Selling Rates Tab */}
         <TabsContent value="selling-rates" className="space-y-6">
           {product && (
-            <ProductOptionSellingRatesManager
-              productId={productId}
-              productOption={option}
-              productType={product?.product_type_id}
+            <ProductSellingRatesManager
               product={product}
+              productOption={option}
             />
           )}
         </TabsContent>

@@ -1,59 +1,91 @@
 import { createDatabaseService } from '@/lib/database';
-import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { withAuth, withRole, successResponse, errorResponse, validateRequestBody } from '@/lib/auth/api-middleware';
+import { supplierSchema } from '@/lib/validations/supplier.schema';
 
-export async function GET(request: Request) {
+export const GET = withAuth(async (request: NextRequest, context) => {
   try {
     const db = await createDatabaseService();
     
-    // For now, using a hardcoded organization ID
-    // In production, this would come from the authenticated user's session
-    const organizationId = '11111111-1111-1111-1111-111111111111';
-    
-    const suppliers = await db.getSuppliers(organizationId);
+    // Use authenticated user's organization ID
+    const suppliers = await db.getSuppliers(context.organizationId);
 
-    return NextResponse.json({ success: true, data: suppliers });
+    return successResponse(suppliers, 'Suppliers retrieved successfully');
   } catch (error) {
     console.error('Unexpected error fetching suppliers:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return errorResponse(
+      'Failed to fetch suppliers',
+      'FETCH_ERROR',
+      500
+    );
   }
-}
+});
 
-export async function POST(request: Request) {
+// Only admins and owners can create suppliers
+export const POST = withRole(['admin', 'owner'], async (request: NextRequest, context) => {
   try {
-    const { name, code, supplier_type, contact_info, commission_rate } = await request.json();
-    
-    if (!name?.trim() || !code?.trim()) {
-      return NextResponse.json({ success: false, error: 'Name and code are required' }, { status: 400 });
+    // Validate request body
+    const { data: supplierData, error: validationError } = await validateRequestBody(
+      request,
+      supplierSchema
+    );
+
+    if (validationError) {
+      return validationError;
     }
 
     const db = await createDatabaseService();
     const supabase = await db.getServerDatabase();
     
-    // For now, using a hardcoded organization ID
-    const organizationId = '11111111-1111-1111-1111-111111111111';
+    // Check if supplier code already exists in organization
+    const { data: existingSupplier } = await supabase
+      .from('suppliers')
+      .select('id')
+      .eq('organization_id', context.organizationId)
+      .eq('code', supplierData!.code.trim())
+      .single();
+
+    if (existingSupplier) {
+      return errorResponse(
+        'Supplier with this code already exists',
+        'DUPLICATE_CODE',
+        400
+      );
+    }
     
     const { data: supplier, error } = await supabase
       .from('suppliers')
       .insert({
-        organization_id: organizationId,
-        name: name.trim(),
-        code: code.trim(),
-        supplier_type: supplier_type || null,
-        contact_info: contact_info || null,
-        commission_rate: commission_rate || null,
+        organization_id: context.organizationId,
+        name: supplierData!.name.trim(),
+        code: supplierData!.code.trim(),
+        supplier_type: supplierData!.supplier_type || null,
+        contact_info: supplierData!.contact_info || null,
+        default_currency: supplierData!.default_currency || 'USD',
+        email: supplierData!.email || null,
+        phone: supplierData!.phone || null,
         is_active: true
       })
-      .select('id, name, code, supplier_type, is_active')
+      .select('id, name, code, supplier_type, default_currency, email, phone, is_active')
       .single();
 
     if (error) {
       console.error('Error creating supplier:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return errorResponse(
+        'Failed to create supplier',
+        'CREATE_ERROR',
+        500,
+        error.message
+      );
     }
 
-    return NextResponse.json({ success: true, data: supplier }, { status: 201 });
+    return successResponse(supplier, 'Supplier created successfully', 201);
   } catch (error) {
     console.error('Unexpected error creating supplier:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return errorResponse(
+      'Internal server error',
+      'INTERNAL_ERROR',
+      500
+    );
   }
-}
+});

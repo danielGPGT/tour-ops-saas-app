@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, useMemo, useEffect } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { 
   ArrowLeft, 
   Trash2, 
@@ -114,17 +114,27 @@ const getProductTypeColor = (typeName: string) => {
 export default function ProductDetailsPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const productId = params.id as string
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [selectedOptions, setSelectedOptions] = useState<ProductOption[]>([])
   const [showAddOptionDialog, setShowAddOptionDialog] = useState(false)
   const [editingOption, setEditingOption] = useState<ProductOption | null>(null)
+  const [activeTab, setActiveTab] = useState('overview')
 
   // Fetch product and options data
   const { data: product, isLoading: productLoading } = useProduct(productId)
   const { data: options = [], isLoading: optionsLoading } = useProductOptions(productId)
   const deleteProduct = useDeleteProduct()
+
+  // Handle tab from URL query parameter
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab && ['overview', 'options', 'selling-rates', 'allocations'].includes(tab)) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
 
   // Stats data - always call hooks before any returns
   const stats = useMemo(() => {
@@ -472,7 +482,7 @@ export default function ProductDetailsPage() {
       <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
         {/* Main Content Area */}
         <div className="space-y-4">
-          <Tabs defaultValue="overview" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid grid-cols-4 mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="options">Options</TabsTrigger>

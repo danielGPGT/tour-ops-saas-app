@@ -1,38 +1,55 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { ProductService } from '@/lib/services/product-service';
 import { checkEnvironment } from '@/lib/env-check';
+import { withAuth, successResponse, errorResponse, validateRequestBody } from '@/lib/auth/api-middleware';
+import { z } from 'zod';
 
-export async function POST(request: NextRequest) {
+// Define validation schema for wizard data
+const wizardDataSchema = z.object({
+  productType: z.string().min(1, 'Product type is required'),
+  productName: z.string().min(1, 'Product name is required'),
+  // Add other required fields based on your wizard structure
+}).passthrough(); // Allow additional fields
+
+export const POST = withAuth(async (request: NextRequest, context) => {
   try {
     // Check environment first
     const envCheck = checkEnvironment();
     if (!envCheck.isValid) {
       console.error('Environment issues:', envCheck.issues);
-      return NextResponse.json(
-        { 
-          error: 'Database configuration issue. Please check your environment variables.',
-          details: envCheck.issues 
-        },
-        { status: 500 }
+      return errorResponse(
+        'Database configuration issue. Please check your environment variables.',
+        'ENV_CONFIG_ERROR',
+        500,
+        envCheck.issues
       );
     }
 
-    const wizardData = await request.json();
-    
-    // In a real app, you'd get this from the auth session
+    // Validate request body
+    const { data: wizardData, error: validationError } = await validateRequestBody(
+      request,
+      wizardDataSchema
+    );
+
+    if (validationError) {
+      return validationError;
+    }
+
+    // Use authenticated session data
     const session = {
-      org_id: 1, // Would come from auth context
-      user_id: 1  // Would come from auth context
+      org_id: context.organizationId,
+      user_id: context.userId
     };
     
-    const result = await ProductService.createProductFromWizardData(wizardData, session);
+    const result = await ProductService.createProductFromWizardData(wizardData!, session);
     
     if (result.success) {
-      return NextResponse.json(result, { status: 201 });
+      return successResponse(result, 'Product created successfully', 201);
     } else {
-      return NextResponse.json(
-        { error: result.error || 'Failed to create product' },
-        { status: 400 }
+      return errorResponse(
+        result.error || 'Failed to create product',
+        'CREATION_FAILED',
+        400
       );
     }
   } catch (error) {
@@ -40,20 +57,20 @@ export async function POST(request: NextRequest) {
     
     // Provide more specific error messages
     let errorMessage = 'Internal server error';
+    let errorCode = 'INTERNAL_ERROR';
     
     if (error instanceof Error) {
       if (error.message.includes('connect')) {
         errorMessage = 'Database connection failed. Please check your DATABASE_URL.';
+        errorCode = 'DB_CONNECTION_ERROR';
       } else if (error.message.includes('relation') || error.message.includes('table')) {
         errorMessage = 'Database schema issue. Please run the database migration.';
+        errorCode = 'DB_SCHEMA_ERROR';
       } else {
         errorMessage = error.message;
       }
     }
     
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    return errorResponse(errorMessage, errorCode, 500);
   }
-}
+});

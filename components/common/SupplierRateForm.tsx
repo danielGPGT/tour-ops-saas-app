@@ -135,7 +135,7 @@ export function SupplierRateForm({
               <SelectValue placeholder="Select a product option" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No specific option</SelectItem>
+              <SelectItem value="none">No specific option</SelectItem>
               {filteredProductOptions.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
                   {option.option_name} ({option.option_code})
@@ -394,7 +394,7 @@ export function SupplierRateFormContent({
               <SelectValue placeholder="Select a product option" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No specific option</SelectItem>
+              <SelectItem value="none">No specific option</SelectItem>
               {filteredProductOptions.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
                   {option.option_name} ({option.option_code})
